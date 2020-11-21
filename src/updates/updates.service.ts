@@ -1,15 +1,26 @@
 import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 const axios = require('axios').default;
 
-export interface VersionsUpdate {
+type UpdatesServiceConfig = {
+  apiVersionURL: string;
+};
+
+export interface Versions {
   current: string,
   last: string
 }
 
 @Injectable()
-export class AppService {
-  UIVersions(): VersionsUpdate {
-    const versions: VersionsUpdate = {
+export class UpdatesService {
+  private _config: UpdatesServiceConfig;
+
+  constructor (private configService: ConfigService) {
+    this._config = <UpdatesServiceConfig>this.configService.get('updates');
+  }
+
+  UIVersions(): Versions {
+    const versions: Versions = {
       current: "1.2.3",
       last: "2.2.2"
     }
@@ -17,18 +28,18 @@ export class AppService {
     return versions;
   }
 
-  async APIVersions(): Promise<VersionsUpdate> {
+  async APIVersions(): Promise<Versions> {
     let doc: any = {};
     const gitBranch = "develop";
     
     try {
-      doc = await axios.get(`https://raw.githubusercontent.com/soltecsis/fwcloud-api/${gitBranch}/package.json`);
+      doc = await axios.get(`${this._config.apiVersionURL}/${gitBranch}/package.json`);
     } catch (err) { throw new HttpException(`Getting last version URL: ${err.response.statusText}`, HttpStatus.INTERNAL_SERVER_ERROR); }
 
     if (!doc || !doc.data || !doc.data.version)
       throw new HttpException('Last version number not found', HttpStatus.NOT_FOUND);
 
-    const versions: VersionsUpdate = {
+    const versions: Versions = {
       current: "1.2.3",
       last: `${doc.data.version}`
     }
