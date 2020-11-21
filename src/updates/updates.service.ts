@@ -1,15 +1,11 @@
 import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Versions } from './updates.model'
 const axios = require('axios').default;
 
 type UpdatesServiceConfig = {
   apiVersionURL: string;
 };
-
-export interface Versions {
-  current: string,
-  last: string
-}
 
 @Injectable()
 export class UpdatesService {

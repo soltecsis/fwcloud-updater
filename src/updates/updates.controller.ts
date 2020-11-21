@@ -1,5 +1,6 @@
 import { Controller, Get, Put } from '@nestjs/common';
-import { UpdatesService, Versions } from './updates.service';
+import { UpdatesService } from './updates.service';
+import { Versions } from './updates.model';
 
 @Controller('updates')
 export class UpdatesController {
