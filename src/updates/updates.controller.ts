@@ -1,13 +1,14 @@
-import { Controller, Get, Put } from '@nestjs/common';
+import { Controller, Get, Put, Req } from '@nestjs/common';
 import { UpdatesService } from './updates.service';
 import { Apps, UpdatesInfo } from './updates.model';
+import { Request } from 'express';
 
 @Controller('updates')
 export class UpdatesController {
   constructor(private readonly updatesService: UpdatesService) {}
 
   @Get()
-  async getUpdatesInfo(): Promise<UpdatesInfo> {
+  async getUpdatesInfo(@Req() request: Request): Promise<UpdatesInfo> {
     const updatesInfo: UpdatesInfo = {
       api: await this.updatesService.getVersions(Apps.API),
       ui: await this.updatesService.getVersions(Apps.UI),
