@@ -17,13 +17,13 @@ export class UpdatesController {
     return updatesInfo;
   }
 
-  @Put('fwcloud-ui')
-  updateUI(): void {
-    return;
+  @Put('ui')
+  async updateUI(): Promise<void> {
+    return this.updatesService.runUpdate(Apps.UI);
   }
 
-  @Put('fwcloud-api')
-  updateAPI(): void {
-    return;
+  @Put('api')
+  async updateAPI(): Promise<void> {
+    return this.updatesService.runUpdate(Apps.API);
   }
 }
