@@ -1,19 +1,12 @@
 import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Apps, Versions } from './updates.model';
+import { UpdatesServiceConfig, Apps, Versions } from './updates.model';
 import { LogsService } from 'src/logs/logs.service';
 import * as cmp from 'semver-compare';
 import * as fs from 'fs';
 import * as branch from 'git-branch';
 import * as cmd from 'node-cmd';
 const axios = require('axios').default;
-
-type UpdatesServiceConfig = {
-  api: {
-    versionURL: string;
-    installDir: string;
-  }
-};
 
 @Injectable()
 export class UpdatesService {
