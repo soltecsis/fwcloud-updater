@@ -1,10 +1,10 @@
 {
   "name": "fwcloud-updater",
-  "version": "0.0.1",
-  "description": "",
-  "author": "",
-  "private": true,
-  "license": "UNLICENSED",
+  "version": "1.0.5",
+  "description": "FWCloud updater process",
+  "author": "SOLTECSIS (https://soltecsis.com)",
+  "private": false,
+  "license": "GNU AFFERO GENERAL PUBLIC LICENSE Version 3, 19 November 2007",
   "scripts": {
     "prebuild": "rimraf dist",
     "build": "nest build",
