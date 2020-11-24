@@ -1,0 +1,19 @@
+[Unit]
+Description=fwcloud-updater
+
+[Service]
+ExecStart=/usr/bin/npm start
+ExecStop=/usr/bin/npm run stop
+WorkingDirectory=/opt/fwcloud-updater/
+Restart=always
+StandardOutput=/opt/fwcloud-updater/logs/out.log
+StandardError=/opt/fwcloud-updater/logs/error.log
+SyslogIdentifier=fwcloud-updater
+User=fwcloud
+Group=fwcloud
+
+# Restart service after 10 seconds if node service crashes
+# RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
