@@ -27,7 +27,7 @@ import { LogsService } from 'src/logs/logs.service';
 import * as cmp from 'semver-compare';
 import * as fs from 'fs';
 import * as branch from 'git-branch';
-import * as cmd from 'node-cmd';
+const exec = require('child-process-promise').exec;
 const axios = require('axios').default;
 
 @Injectable()
@@ -94,10 +94,10 @@ export class UpdatesService {
       throw new HttpException(`fwcloud-${app} install directory not accessible`,HttpStatus.NOT_FOUND);
     }
 
-    const result: any = await cmd.runSync(`cd ${this._cfg[app].installDir} && npm run update`);
-    if (result.err) {
-      this.log.error(`${result.err}`);
-      throw new HttpException('Error during the update procedure',HttpStatus.INTERNAL_SERVER_ERROR);
+    try { await exec(`cd ${this._cfg[app].installDir} && npm run update`) }
+    catch(err) {
+      this.log.error(`Error during fwcloud-${app} update procedure: ${err.message}`);
+      throw new HttpException(`Error during fwcloud-${app} update procedure`,HttpStatus.METHOD_NOT_ALLOWED);
     }
 
     return;
