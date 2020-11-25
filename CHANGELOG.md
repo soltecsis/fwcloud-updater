@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.0.6] - 2020-11-25
 ### Added
 - License information.
+- Node module child-process-promise.
 
 ### Fixed
 - Avoid execution lock while running update command.
