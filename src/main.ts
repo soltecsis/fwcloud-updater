@@ -28,10 +28,11 @@ import * as cookieParser from 'cookie-parser';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const config: ConfigService = app.get<ConfigService>(ConfigService);
+  const host: string = config.get('app.host');
   const port: number = config.get('app.port');
 
   app.use(cookieParser());
 
-  await app.listen(port);
+  await app.listen(port,host);
 }
 bootstrap();

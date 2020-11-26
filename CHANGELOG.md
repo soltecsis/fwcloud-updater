@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - License information.
 - Node module child-process-promise.
+- Config option for server listen host (default value localhost).
+- PUT /updates/api returns immidiatelly and makes update task in background.
 
 ### Fixed
 - Avoid execution lock while running update command.
