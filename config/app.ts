@@ -23,5 +23,6 @@
 import { registerAs } from '@nestjs/config';
 
 export default registerAs('app', () => ({
+  host: process.env.LISTEN_HOST || 'localhost',
   port: process.env.LISTEN_PORT || 3132,
 }));

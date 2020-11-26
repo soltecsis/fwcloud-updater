@@ -94,10 +94,22 @@ export class UpdatesService {
       throw new HttpException(`fwcloud-${app} install directory not accessible`,HttpStatus.NOT_FOUND);
     }
 
-    try { await exec(`cd ${this._cfg[app].installDir} && npm run update`) }
-    catch(err) {
-      this.log.error(`Error during fwcloud-${app} update procedure: ${err.message}`);
-      throw new HttpException(`Error during fwcloud-${app} update procedure`,HttpStatus.METHOD_NOT_ALLOWED);
+    if (app === Apps.UI) {
+      try { await exec(`cd ${this._cfg[app].installDir} && npm run update`) }
+      catch(err) {
+        this.log.error(`Error during fwcloud-${app} update procedure: ${err.message}`);
+        throw new HttpException(`Error during fwcloud-${app} update procedure`,HttpStatus.METHOD_NOT_ALLOWED);
+      }
+    }
+    else if (app === Apps.API) { // For fwcloud-api update don't wait, answer immediately and run update in background.
+      setTimeout(async () => {
+        try { await exec(`cd ${this._cfg[app].installDir} && npm run update`) }
+        catch(err) { this.log.error(`Error during fwcloud-${app} update procedure: ${err.message}`);}
+      }, 2000);
+    }
+    else {
+      this.log.error('Error fwcloud-updater con only update fwcloud-api and fwcloud-ui');
+      throw new HttpException('Error fwcloud-updater con only update fwcloud-api and fwcloud-ui',HttpStatus.FORBIDDEN);
     }
 
     return;
