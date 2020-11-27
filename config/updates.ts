@@ -34,5 +34,9 @@ export default registerAs('updates', () => ({
   updater: {
     versionURL: process.env.UPDATER_VERSION_URL || 'https://raw.githubusercontent.com/soltecsis/fwcloud-updater',
     installDir: process.env.UPDATER_INSTALL_DIR || '/opt/fwcloud-updater'
+  },
+  websrv: {
+    versionURL: process.env.WEBSRV_VERSION_URL || 'https://raw.githubusercontent.com/soltecsis/fwcloud-websrv',
+    installDir: process.env.WEBSRV_INSTALL_DIR || '/opt/fwcloud-websrv'
   }
 }));

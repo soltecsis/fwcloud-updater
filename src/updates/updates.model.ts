@@ -50,5 +50,6 @@ export interface Versions {
 export enum Apps {
   API = 'api',
   UI = 'ui',
+  WEBSRV = 'websrv',
   UPDATER = 'updater'
 }

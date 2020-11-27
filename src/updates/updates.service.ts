@@ -40,12 +40,12 @@ export class UpdatesService {
     this.log = logsService;
   }
 
-  async getVersions(app: Apps): Promise<Versions | null> {
+  async compareVersions(app: Apps): Promise<Versions | null> {
     let localJson: any = {};
     let remoteJson: any = {};
     
     try {
-      this.log.info(`Getting versions for fwcloud-${app}`);
+      this.log.info(`Compare fwcloud-${app} versions`);
 
       const localPath = `${this._cfg[app].installDir}/package.json`;
       fs.accessSync(localPath, fs.constants.R_OK);

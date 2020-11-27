@@ -32,9 +32,9 @@ export class UpdatesController {
   @Get()
   async getUpdatesInfo(@Req() request: Request): Promise<UpdatesInfo> {
     const updatesInfo: UpdatesInfo = {
-      api: await this.updatesService.getVersions(Apps.API),
-      ui: await this.updatesService.getVersions(Apps.UI),
-      updater: await this.updatesService.getVersions(Apps.UPDATER)
+      api: await this.updatesService.compareVersions(Apps.API),
+      ui: await this.updatesService.compareVersions(Apps.UI),
+      updater: await this.updatesService.compareVersions(Apps.UPDATER)
     }
 
     return updatesInfo;
@@ -48,5 +48,10 @@ export class UpdatesController {
   @Put('api')
   async updateAPI(): Promise<void> {
     return this.updatesService.runUpdate(Apps.API);
+  }
+
+  @Put('websrv')
+  async updateWebsrv(): Promise<void> {
+    return this.updatesService.runUpdate(Apps.WEBSRV);
   }
 }
