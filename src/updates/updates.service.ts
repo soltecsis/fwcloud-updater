@@ -43,29 +43,33 @@ export class UpdatesService {
   async compareVersions(app: Apps): Promise<Versions | null> {
     let localJson: any = {};
     let remoteJson: any = {};
-    
-    try {
-      this.log.info(`Compare fwcloud-${app} versions`);
 
-      const localPath = `${this._cfg[app].installDir}/package.json`;
+    const localPath = `${this._cfg[app].installDir}/package.json`;
+    try {
       fs.accessSync(localPath, fs.constants.R_OK);
       localJson = JSON.parse(fs.readFileSync(localPath, 'utf8'));
+    } catch(err) {
+      this.log.error(`Accessing file '${localPath}' :`,err);
+      return null;      
+    }
 
+    let remoteURL = '';
+    try {
       const gitBranch = await branch(this._cfg[app].installDir);
-      const remoteURL = `${this._cfg[app].versionURL}/${gitBranch}/package.json`;
+      remoteURL = `${this._cfg[app].versionURL}/${gitBranch}/package.json`;
       remoteJson = await axios.get(remoteURL);
     } catch (err) { 
-      this.log.error('',err);
+      this.log.error(`Accessing url '${remoteURL}':`,err);
       return null;
     }
 
     if (!localJson || !localJson.version) {
-      this.log.error('No local version');      
+      this.log.error(`No local version found updating fwcloud-{$app}`);      
       return null;
     }
 
     if (!remoteJson || !remoteJson.data || !remoteJson.data.version) {
-      this.log.error('No remote version');      
+      this.log.error(`No remote version found updating fwcloud-{$app}`);      
       return null;
     }
 
@@ -79,18 +83,16 @@ export class UpdatesService {
   }
 
   async runUpdate(app: Apps): Promise<void> {
-    this.log.info(`Updating fwcloud-${app}`);
-
     // Make sure install dir exists.
     try { fs.lstatSync(this._cfg[app].installDir).isDirectory() }
     catch (err) { 
-      this.log.error(`Directory not found: ${this._cfg[app].installDir}`);
+      this.log.error(`Directory not found: ${this._cfg[app].installDir}`,err);
       throw new HttpException(`fwcloud-${app} install directory not found`,HttpStatus.NOT_FOUND);
     }
 
     try { fs.readdirSync(this._cfg[app].installDir) }
     catch (err) { 
-      this.log.error(`Accessing directory: ${this._cfg[app].installDir}`);
+      this.log.error(`Accessing directory: ${this._cfg[app].installDir}`,err);
       throw new HttpException(`fwcloud-${app} install directory not accessible`,HttpStatus.NOT_FOUND);
     }
 

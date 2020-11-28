@@ -27,6 +27,7 @@ import * as winston from 'winston';
 @Injectable()
 export class LogsService {
   private _logger: winston.Logger;
+  private _http_logger: winston.Logger;
 
   constructor() {
     // Make sure logs directory exists.
@@ -41,20 +42,39 @@ export class LogsService {
         winston.format.timestamp({
             format: 'YYYY-MM-DD HH:mm:ss'
         }),
-        winston.format.printf((info) => `${info.timestamp}|${info.level.toUpperCase()}|${info.message}`)
+        winston.format.printf(info => `${info.timestamp}|${info.level.toUpperCase()}|${info.message}`)
       ),
       defaultMeta: { service: 'user-service' },
       transports: [
-        new winston.transports.File({ filename: 'logs/updater.log', maxsize: 10240, maxFiles: 7, tailable: true }),
+        new winston.transports.File({ filename: 'logs/updater.log', maxsize: 4096, maxFiles: 7, tailable: true }),
+      ],
+    });
+
+    this._http_logger = winston.createLogger({
+      level: 'entry',
+      levels: {entry: 0},
+      format: winston.format.combine (
+        winston.format.timestamp({
+            format: 'YYYY-MM-DD HH:mm:ss'
+        }),
+        winston.format.printf(info => `${info.timestamp}|${info.message}`)
+      ),
+      defaultMeta: { service: 'user-service' },
+      transports: [
+        new winston.transports.File({ filename: 'logs/http.log', maxsize: 4096, maxFiles: 7, tailable: true }),
       ],
     });
   }
 
-  info(log: string, meta?: any):void {
-    this._logger.info(log, meta);
+  http(log: string):void {
+    this._http_logger.log('entry',log);
   }
 
   error(log: string, meta?: any):void {
     this._logger.error(log, meta);
+  }
+
+  info(log: string, meta?: any):void {
+    this._logger.info(log, meta);
   }
 }

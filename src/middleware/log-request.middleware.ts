@@ -20,22 +20,17 @@
     along with FWCloud.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-import { NestFactory } from '@nestjs/core';
-import { AppModule } from './app.module';
-import { ConfigService } from '@nestjs/config';
-import * as cookieParser from 'cookie-parser';
-import { LogsService } from './logs/logs.service';
+import { Injectable, NestMiddleware } from '@nestjs/common';
+import { LogsService } from 'src/logs/logs.service';
+import { Request } from 'express';
 
-async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
-  const config: ConfigService = app.get<ConfigService>(ConfigService);
-  const log: LogsService = app.get<LogsService>(LogsService);
-  const host: string = config.get('app.host');
-  const port: number = config.get('app.port');
+@Injectable()
+export class LogRequestMiddleware implements NestMiddleware {
 
-  app.use(cookieParser());
+  constructor (private log: LogsService) {}
 
-  await app.listen(port,host);
-  this.log.info(`FWCloud Updater server listening on http://${host}:${port}`);
+  use(req: Request, res: Response, next: Function) {
+    this.log.http(`${req.ip}|HTTP/${req.httpVersion}|${req.method.toUpperCase()}|${req.originalUrl}`);
+    next();
+  }
 }
-bootstrap();

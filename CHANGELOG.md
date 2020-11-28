@@ -6,6 +6,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Added
+- Logger for store http requests into logs/http.log.
+- Middleware for log http requests.
+
+## Changed
+- Improved compare versions error handling.
 
 ### Fixed
 
