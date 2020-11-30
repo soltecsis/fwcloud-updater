@@ -20,41 +20,17 @@
     along with FWCloud.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-export type UpdatesServiceConfig = {
-  ui: {
-    versionURL: string;
-    installDir: string;
-  },
-  websrv: {
-    versionURL: string;
-    installDir: string;
-  },
-  api: {
-    versionURL: string;
-    installDir: string;
-  },
-  updater: {
-    versionURL: string;
-    installDir: string;
+import { Injectable, NestMiddleware } from '@nestjs/common';
+import { LogsService } from 'src/logs/logs.service';
+import { Request } from 'express';
+
+@Injectable()
+export class LogRequestMiddleware implements NestMiddleware {
+
+  constructor (private log: LogsService) {}
+
+  use(req: Request, res: Response, next: Function) {
+    this.log.http(`${req.ip}|HTTP/${req.httpVersion}|${req.method.toUpperCase()}|${req.originalUrl}`);
+    next();
   }
-}
-
-export interface UpdatesInfo {
-  websrv: Versions;
-  ui: Versions;
-  api: Versions;
-  updater: Versions;
-}
-
-export interface Versions {
-  current: string;
-  last: string;
-  needsUpdate: boolean;
-}
-
-export enum Apps {
-  WEBSRV = 'websrv',
-  UI = 'ui',
-  API = 'api',
-  UPDATER = 'updater'
 }

@@ -33,11 +33,9 @@ interface RequestWithCookies extends Request {
 @Injectable()
 export class AuthMiddleware implements NestMiddleware {
   private _cfg: UpdatesServiceConfig;
-  private log: LogsService;
 
-  constructor (private configService: ConfigService, private logsService: LogsService) {
+  constructor (private configService: ConfigService, private log: LogsService) {
     this._cfg = <UpdatesServiceConfig>this.configService.get('updates');
-    this.log = logsService;
   }
 
   use(req: RequestWithCookies, res: Response, next: Function) {

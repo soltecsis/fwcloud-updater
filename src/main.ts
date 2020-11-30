@@ -23,16 +23,35 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ConfigService } from '@nestjs/config';
+import { LogsService } from './logs/logs.service';
 import * as cookieParser from 'cookie-parser';
+import * as fs from 'fs';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const config: ConfigService = app.get<ConfigService>(ConfigService);
+  const log: LogsService = app.get<LogsService>(LogsService);
   const host: string = config.get('app.host');
   const port: number = config.get('app.port');
-
   app.use(cookieParser());
 
+  log.info(`------- Starting application -------`);
+  log.info(`FWCloud Updater v${JSON.parse(fs.readFileSync('package.json').toString()).version} (PID=${process.pid})`);
+
   await app.listen(port,host);
+  log.info(`Listening on http://${host}:${port}`);
+
+  fs.writeFileSync('.pid',`${process.pid}`);
+
+  function signalHandler (signal: 'SIGINT' | 'SIGTERM') {
+    log.info(`Received signal: ${signal}`);
+    fs.unlink('.pid',err => {
+      log.info(`------- Application stopped --------`);
+      app.close();
+      setTimeout(() => process.exit(0), 100);
+    });
+  }
+  process.on('SIGINT', signalHandler);
+  process.on('SIGTERM', signalHandler);
 }
 bootstrap();

@@ -28,6 +28,7 @@ import { LogsModule } from './logs/logs.module';
 import appConfig from '../config/app';
 import updatesConfig from '../config/updates';
 import { AuthMiddleware } from './middleware/auth.middleware';
+import { LogRequestMiddleware } from './middleware/log-request.middleware';
 
 @Module({
   imports: [
@@ -43,6 +44,7 @@ import { AuthMiddleware } from './middleware/auth.middleware';
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
+    consumer.apply(LogRequestMiddleware).forRoutes('*');
     consumer.apply(AuthMiddleware).forRoutes('*');
   }
 }
