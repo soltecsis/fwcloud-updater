@@ -32,8 +32,9 @@ export class UpdatesController {
   @Get()
   async getUpdatesInfo(@Req() request: Request): Promise<UpdatesInfo> {
     const updatesInfo: UpdatesInfo = {
-      api: await this.updatesService.compareVersions(Apps.API),
+      websrv: await this.updatesService.compareVersions(Apps.WEBSRV),
       ui: await this.updatesService.compareVersions(Apps.UI),
+      api: await this.updatesService.compareVersions(Apps.API),
       updater: await this.updatesService.compareVersions(Apps.UPDATER)
     }
 

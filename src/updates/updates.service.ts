@@ -96,7 +96,7 @@ export class UpdatesService {
       throw new HttpException(`fwcloud-${app} install directory not accessible`,HttpStatus.NOT_FOUND);
     }
 
-    if (app === Apps.UI) {
+    if (app === Apps.UI || app === Apps.WEBSRV) {
       try { await exec(`cd ${this._cfg[app].installDir} && npm run update`) }
       catch(err) {
         this.log.error(`Error during fwcloud-${app} update procedure: ${err.message}`);

@@ -21,11 +21,15 @@
 */
 
 export type UpdatesServiceConfig = {
-  api: {
+  ui: {
     versionURL: string;
     installDir: string;
   },
-  ui: {
+  websrv: {
+    versionURL: string;
+    installDir: string;
+  },
+  api: {
     versionURL: string;
     installDir: string;
   },
@@ -36,8 +40,9 @@ export type UpdatesServiceConfig = {
 }
 
 export interface UpdatesInfo {
-  api: Versions;
+  websrv: Versions;
   ui: Versions;
+  api: Versions;
   updater: Versions;
 }
 
@@ -48,8 +53,8 @@ export interface Versions {
 }
 
 export enum Apps {
-  API = 'api',
-  UI = 'ui',
   WEBSRV = 'websrv',
+  UI = 'ui',
+  API = 'api',
   UPDATER = 'updater'
 }

@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Store pid in .pid file.
 - Npm script for stop process using the pid stored in .pid file.
 - SGTERM and SIGINT signal handlers.
+- Implement API call for FWCloud Websrv updates (PUT /updates/websrv).
 
 ## Changed
 - Improved compare versions error handling.
