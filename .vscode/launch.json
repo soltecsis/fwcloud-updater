@@ -8,7 +8,7 @@
       "type": "node",
       "runtimeVersion": "14.15.1",
       "request": "launch",
-      "name": "FWCloud-Updater",
+      "name": "Build & Run FWCloud Updater",
       "skipFiles": [
         "<node_internals>/**"
       ],
