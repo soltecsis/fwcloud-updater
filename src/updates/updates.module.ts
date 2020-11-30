@@ -20,31 +20,14 @@
     along with FWCloud.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
-import { UpdatesModule } from './updates/updates.module';
-import { LogsModule } from './logs/logs.module';
-
-import appConfig from '../config/app';
-import updatesConfig from '../config/updates';
-import { AuthMiddleware } from './middleware/auth.middleware';
-import { LogRequestMiddleware } from './middleware/log-request.middleware';
+import { Module } from '@nestjs/common';
+import { LogsModule } from 'src/logs/logs.module';
+import { UpdatesController } from './updates.controller';
+import { UpdatesService } from './updates.service';
 
 @Module({
-  imports: [
-    ConfigModule.forRoot({
-      isGlobal: true,
-      load: [
-        appConfig,
-        updatesConfig
-      ],
-    }),
-    UpdatesModule,
-    LogsModule],
+  controllers: [UpdatesController],
+  providers: [UpdatesService],
+  imports: [LogsModule]
 })
-export class AppModule implements NestModule {
-  configure(consumer: MiddlewareConsumer) {
-    consumer.apply(LogRequestMiddleware).forRoutes('*');
-    consumer.apply(AuthMiddleware).forRoutes('*');
-  }
-}
+export class UpdatesModule {}

@@ -1,0 +1,14 @@
+[Unit]
+Description=fwcloud-updater
+
+[Service]
+ExecStart=/usr/bin/npm start
+ExecStop=/usr/bin/npm run stop
+WorkingDirectory=/opt/fwcloud-updater/
+SyslogIdentifier=fwcloud-updater
+User=fwcloud
+Group=fwcloud
+Type=simple
+
+[Install]
+WantedBy=multi-user.target
