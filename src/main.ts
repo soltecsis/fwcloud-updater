@@ -35,7 +35,7 @@ async function bootstrap() {
     const httpsOptions = {
       key: fs.readFileSync(config.get('updater.key')).toString(),
       cert: fs.readFileSync(config.get('updater.cert')).toString(),
-      ca: this._cfg.ca_bundle ? fs.readFileSync(config.get('updater.ca_bundle')).toString() : null
+      ca: config.get('updater.ca_bundle') ? fs.readFileSync(config.get('updater.ca_bundle')).toString() : null
     }
     app.close();
     app = await NestFactory.create(AppModule,{httpsOptions: httpsOptions});
