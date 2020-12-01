@@ -1,6 +1,6 @@
 {
   "name": "fwcloud-updater",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "description": "FWCloud updater process",
   "author": "SOLTECSIS (https://soltecsis.com)",
   "private": false,

@@ -28,18 +28,32 @@ import * as cookieParser from 'cookie-parser';
 import * as fs from 'fs';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
-  const config: ConfigService = app.get<ConfigService>(ConfigService);
+  let app = await NestFactory.create(AppModule);
+  let config: ConfigService = app.get<ConfigService>(ConfigService);
+
+  if (config.get('updater.https')) {
+    const httpsOptions = {
+      key: fs.readFileSync(config.get('updater.key')).toString(),
+      cert: fs.readFileSync(config.get('updater.cert')).toString(),
+      ca: this._cfg.ca_bundle ? fs.readFileSync(config.get('updater.ca_bundle')).toString() : null
+    }
+    app.close();
+    app = await NestFactory.create(AppModule,{httpsOptions: httpsOptions});
+    config = app.get<ConfigService>(ConfigService);
+  }
+
+
   const log: LogsService = app.get<LogsService>(LogsService);
-  const host: string = config.get('app.host');
-  const port: number = config.get('app.port');
+  const host: string = config.get('updater.host');
+  const port: number = config.get('updater.port');
+
   app.use(cookieParser());
 
   log.info(`------- Starting application -------`);
   log.info(`FWCloud Updater v${JSON.parse(fs.readFileSync('package.json').toString()).version} (PID=${process.pid})`);
 
   await app.listen(port,host);
-  log.info(`Listening on http://${host}:${port}`);
+  log.info(`Listening on http${config.get('updater.host') ? 's' : ''}://${host}:${port}`);
 
   fs.writeFileSync('.pid',`${process.pid}`);
 
