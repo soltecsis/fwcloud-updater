@@ -97,7 +97,7 @@ export class UpdatesService {
     }
 
     if (app === Apps.UI) {
-      try { await exec(`cd ${this._cfg[app].installDir} && npm run update`) }
+      try { await exec(`cd ${this._cfg[app].installDir}; npm run update`) }
       catch(err) {
         this.log.error(`Error during fwcloud-${app} update procedure: ${err.message}`);
         throw new HttpException(`Error during fwcloud-${app} update procedure`,HttpStatus.METHOD_NOT_ALLOWED);
@@ -105,7 +105,7 @@ export class UpdatesService {
     }
     else if (app === Apps.API || app === Apps.WEBSRV) { // For fwcloud-api and fwcloud-websrv update don't wait, answer immediately and run update in background.
       setTimeout(async () => {
-        try { await exec(`cd ${this._cfg[app].installDir} && npm run update`) }
+        try { await exec(`cd ${this._cfg[app].installDir}; npm run update`) }
         catch(err) { this.log.error(`Error during fwcloud-${app} update procedure: ${err.message}`);}
       }, 2000);
     }
