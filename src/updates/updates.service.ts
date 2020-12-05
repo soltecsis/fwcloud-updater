@@ -28,6 +28,7 @@ import * as cmp from 'semver-compare';
 import * as fs from 'fs';
 import * as branch from 'git-branch';
 const spawn = require('child-process-promise').spawn;
+const { fork } = require('child_process');
 const axios = require('axios').default;
 
 @Injectable()
@@ -97,7 +98,10 @@ export class UpdatesService {
     }
 
     if (app === Apps.UI) {
-      try { await spawn('npm', ['run', 'update'], { cwd: this._cfg[app].installDir }) }
+      try { 
+        await spawn('npm', ['run', 'update'], { cwd: this._cfg[app].installDir }) 
+        this.log.info(`fwcloud-${app} update finished`)
+      }
       catch(err) {
         this.log.error(`Error during fwcloud-${app} update procedure: ${err.message}`);
         throw new HttpException(`Error during fwcloud-${app} update procedure`,HttpStatus.METHOD_NOT_ALLOWED);
@@ -106,9 +110,11 @@ export class UpdatesService {
     else if (app === Apps.API || app === Apps.WEBSRV) { // For fwcloud-api and fwcloud-websrv update don't wait, answer immediately and run update in background.
       setTimeout(async () => {
         try { 
-          const promise = spawn('npm', ['run', 'update'], { cwd: this._cfg[app].installDir, detached: true, stdio: 'ignore', killSignal: 0 });
+          await spawn('npm', ['run', 'update'], { cwd: this._cfg[app].installDir })
+          this.log.info(`fwcloud-${app} update finished. Starting it ...`)
+          const promise = spawn('npm', ['start'], { cwd: this._cfg[app].installDir, detached: true, stdio: 'ignore' });
           promise.childProcess.unref();
-          await promise;
+          //await promise;
         }
         catch(err) { this.log.error(`Error during fwcloud-${app} update procedure: ${err.message}`);}
       }, 2000);
