@@ -27,7 +27,7 @@ import { LogsService } from 'src/logs/logs.service';
 import * as cmp from 'semver-compare';
 import * as fs from 'fs';
 import * as branch from 'git-branch';
-const exec = require('child-process-promise').exec;
+const spawn = require('child-process-promise').spawn;
 const axios = require('axios').default;
 
 @Injectable()
@@ -97,7 +97,9 @@ export class UpdatesService {
     }
 
     if (app === Apps.UI) {
-      try { await exec(`cd ${this._cfg[app].installDir}; npm run update`) }
+      try { 
+        await spawn('npm', ['run', 'update'], { cwd: this._cfg[app].installDir});
+      }
       catch(err) {
         this.log.error(`Error during fwcloud-${app} update procedure: ${err.message}`);
         throw new HttpException(`Error during fwcloud-${app} update procedure`,HttpStatus.METHOD_NOT_ALLOWED);
@@ -105,13 +107,13 @@ export class UpdatesService {
     }
     else if (app === Apps.API || app === Apps.WEBSRV) { // For fwcloud-api and fwcloud-websrv update don't wait, answer immediately and run update in background.
       setTimeout(async () => {
-        try { await exec(`cd ${this._cfg[app].installDir}; npm run update`) }
+        try { await spawn('npm', ['run', 'update'], { cwd: this._cfg[app].installDir}) }
         catch(err) { this.log.error(`Error during fwcloud-${app} update procedure: ${err.message}`);}
       }, 2000);
     }
     else {
-      this.log.error('Error fwcloud-updater con only update fwcloud-api and fwcloud-ui');
-      throw new HttpException('Error fwcloud-updater con only update fwcloud-api and fwcloud-ui',HttpStatus.FORBIDDEN);
+      this.log.error('Error fwcloud-updater con only update fwcloud-websrv, fwcloud-api and fwcloud-ui');
+      throw new HttpException('Error fwcloud-updater con only update fwcloud-websrv, fwcloud-api and fwcloud-ui',HttpStatus.FORBIDDEN);
     }
 
     return;
