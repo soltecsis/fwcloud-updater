@@ -28,7 +28,6 @@ import * as cmp from 'semver-compare';
 import * as fs from 'fs';
 import * as branch from 'git-branch';
 const spawn = require('child-process-promise').spawn;
-const { fork } = require('child_process');
 const axios = require('axios').default;
 
 @Injectable()
