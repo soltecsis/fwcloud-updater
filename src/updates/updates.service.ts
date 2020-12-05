@@ -98,7 +98,7 @@ export class UpdatesService {
 
     if (app === Apps.UI) {
       try { 
-        const promise = spawn('npm', ['run', 'update'], { cwd: this._cfg[app].installDir, detached: true, stdio: 'ignore' });
+        const promise = spawn('npm', ['run', 'update'], { cwd: this._cfg[app].installDir, detached: true, stdio: 'ignore', killSignal: 0 });
         promise.childProcess.unref();
         await promise;
       }
@@ -110,7 +110,7 @@ export class UpdatesService {
     else if (app === Apps.API || app === Apps.WEBSRV) { // For fwcloud-api and fwcloud-websrv update don't wait, answer immediately and run update in background.
       setTimeout(async () => {
         try { 
-          const promise = spawn('npm', ['run', 'update'], { cwd: this._cfg[app].installDir, detached: true, stdio: 'ignore' });
+          const promise = spawn('npm', ['run', 'update'], { cwd: this._cfg[app].installDir, detached: true, stdio: 'ignore', killSignal: 0 });
           promise.childProcess.unref();
           await promise;
         }
