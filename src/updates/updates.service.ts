@@ -97,11 +97,7 @@ export class UpdatesService {
     }
 
     if (app === Apps.UI) {
-      try { 
-        const promise = spawn('npm', ['run', 'update'], { cwd: this._cfg[app].installDir, detached: true, stdio: 'ignore', killSignal: 0 });
-        promise.childProcess.unref();
-        await promise;
-      }
+      try { await spawn('npm', ['run', 'update'], { cwd: this._cfg[app].installDir }) }
       catch(err) {
         this.log.error(`Error during fwcloud-${app} update procedure: ${err.message}`);
         throw new HttpException(`Error during fwcloud-${app} update procedure`,HttpStatus.METHOD_NOT_ALLOWED);
