@@ -98,6 +98,7 @@ export class UpdatesService {
 
     if (app === Apps.UI) {
       try { 
+        this.log.info(`Updating fwcloud-${app} ...`)
         await spawn('npm', ['run', 'update'], { cwd: this._cfg[app].installDir }) 
         this.log.info(`fwcloud-${app} update finished`)
       }
@@ -109,11 +110,12 @@ export class UpdatesService {
     else if (app === Apps.API || app === Apps.WEBSRV) { // For fwcloud-api and fwcloud-websrv update don't wait, answer immediately and run update in background.
       setTimeout(async () => {
         try { 
+          this.log.info(`Updating fwcloud-${app} ...`)
           await spawn('npm', ['run', 'update'], { cwd: this._cfg[app].installDir })
           this.log.info(`fwcloud-${app} update finished. Starting it ...`)
-          const promise = spawn('npm', ['start'], { cwd: this._cfg[app].installDir, detached: true, stdio: 'ignore' });
+          const promise = spawn('npm', ['run','start:bg'], { cwd: this._cfg[app].installDir, detached: true, stdio: 'ignore' });
           promise.childProcess.unref();
-          //await promise;
+          await promise;
         }
         catch(err) { this.log.error(`Error during fwcloud-${app} update procedure: ${err.message}`);}
       }, 2000);
