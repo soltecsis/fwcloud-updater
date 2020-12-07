@@ -23,11 +23,11 @@
 import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { UpdatesServiceConfig, Apps, Versions } from './updates.model';
-import { LogsService } from 'src/logs/logs.service';
+import { LogsService } from '../logs/logs.service';
 import * as cmp from 'semver-compare';
 import * as fs from 'fs';
 import * as branch from 'git-branch';
-const spawn = require('child-process-promise').spawn;
+const child = require('child-process-promise');
 const axios = require('axios').default;
 
 @Injectable()
@@ -64,12 +64,12 @@ export class UpdatesService {
     }
 
     if (!localJson || !localJson.version) {
-      this.log.error(`No local version found updating fwcloud-{$app}`);      
+      this.log.error(`No local version found updating fwcloud-${app}`);      
       return null;
     }
 
     if (!remoteJson || !remoteJson.data || !remoteJson.data.version) {
-      this.log.error(`No remote version found updating fwcloud-{$app}`);      
+      this.log.error(`No remote version found updating fwcloud-${app}`);      
       return null;
     }
 
@@ -99,7 +99,7 @@ export class UpdatesService {
     if (app === Apps.UI) {
       try { 
         this.log.info(`Updating fwcloud-${app} ...`)
-        await spawn('npm', ['run', 'update'], { cwd: this._cfg[app].installDir }) 
+        await child.spawn('npm', ['run', 'update'], { cwd: this._cfg[app].installDir }) 
         this.log.info(`fwcloud-${app} update finished`)
       }
       catch(err) {
@@ -111,14 +111,14 @@ export class UpdatesService {
       setTimeout(async () => {
         try { 
           this.log.info(`Updating fwcloud-${app} ...`)
-          await spawn('npm', ['run', 'update'], { cwd: this._cfg[app].installDir })
+          await child.spawn('npm', ['run', 'update'], { cwd: this._cfg[app].installDir })
           this.log.info(`fwcloud-${app} update finished. Starting it ...`)
-          const promise = spawn('npm', ['run','start:bg'], { cwd: this._cfg[app].installDir, detached: true, stdio: 'ignore' });
+          const promise = child.spawn('npm', ['run','start:bg'], { cwd: this._cfg[app].installDir, detached: true, stdio: 'ignore' });
           promise.childProcess.unref();
           await promise;
         }
         catch(err) { this.log.error(`Error during fwcloud-${app} update procedure: ${err.message}`);}
-      }, 2000);
+      }, 1000);
     }
     else {
       this.log.error('Error fwcloud-updater con only update fwcloud-websrv, fwcloud-api and fwcloud-ui');
