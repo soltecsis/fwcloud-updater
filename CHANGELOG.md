@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement API call for FWCloud Websrv updates (PUT /updates/websrv).
 - HTTPS support.
 - Unit tests.
+- Workflow for Github actions.
 
 ## Changed
 - Improved compare versions error handling.
