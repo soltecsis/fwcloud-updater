@@ -23,11 +23,11 @@
 import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { UpdatesServiceConfig, Apps, Versions } from './updates.model';
-import { LogsService } from 'src/logs/logs.service';
+import { LogsService } from '../logs/logs.service';
 import * as cmp from 'semver-compare';
 import * as fs from 'fs';
 import * as branch from 'git-branch';
-const exec = require('child-process-promise').exec;
+const child = require('child-process-promise');
 const axios = require('axios').default;
 
 @Injectable()
@@ -64,12 +64,12 @@ export class UpdatesService {
     }
 
     if (!localJson || !localJson.version) {
-      this.log.error(`No local version found updating fwcloud-{$app}`);      
+      this.log.error(`No local version found updating fwcloud-${app}`);      
       return null;
     }
 
     if (!remoteJson || !remoteJson.data || !remoteJson.data.version) {
-      this.log.error(`No remote version found updating fwcloud-{$app}`);      
+      this.log.error(`No remote version found updating fwcloud-${app}`);      
       return null;
     }
 
@@ -96,22 +96,33 @@ export class UpdatesService {
       throw new HttpException(`fwcloud-${app} install directory not accessible`,HttpStatus.NOT_FOUND);
     }
 
-    if (app === Apps.UI || app === Apps.WEBSRV) {
-      try { await exec(`cd ${this._cfg[app].installDir} && npm run update`) }
+    if (app === Apps.UI) {
+      try { 
+        this.log.info(`Updating fwcloud-${app} ...`)
+        await child.spawn('npm', ['run', 'update'], { cwd: this._cfg[app].installDir }) 
+        this.log.info(`fwcloud-${app} update finished`)
+      }
       catch(err) {
         this.log.error(`Error during fwcloud-${app} update procedure: ${err.message}`);
         throw new HttpException(`Error during fwcloud-${app} update procedure`,HttpStatus.METHOD_NOT_ALLOWED);
       }
     }
-    else if (app === Apps.API) { // For fwcloud-api update don't wait, answer immediately and run update in background.
+    else if (app === Apps.API || app === Apps.WEBSRV) { // For fwcloud-api and fwcloud-websrv update don't wait, answer immediately and run update in background.
       setTimeout(async () => {
-        try { await exec(`cd ${this._cfg[app].installDir} && npm run update`) }
+        try { 
+          this.log.info(`Updating fwcloud-${app} ...`)
+          await child.spawn('npm', ['run', 'update'], { cwd: this._cfg[app].installDir })
+          this.log.info(`fwcloud-${app} update finished. Starting it ...`)
+          const promise = child.spawn('npm', ['run','start:bg'], { cwd: this._cfg[app].installDir, detached: true, stdio: 'ignore' });
+          promise.childProcess.unref();
+          await promise;
+        }
         catch(err) { this.log.error(`Error during fwcloud-${app} update procedure: ${err.message}`);}
-      }, 2000);
+      }, 1000);
     }
     else {
-      this.log.error('Error fwcloud-updater con only update fwcloud-api and fwcloud-ui');
-      throw new HttpException('Error fwcloud-updater con only update fwcloud-api and fwcloud-ui',HttpStatus.FORBIDDEN);
+      this.log.error('Error fwcloud-updater con only update fwcloud-websrv, fwcloud-api and fwcloud-ui');
+      throw new HttpException('Error fwcloud-updater con only update fwcloud-websrv, fwcloud-api and fwcloud-ui',HttpStatus.FORBIDDEN);
     }
 
     return;

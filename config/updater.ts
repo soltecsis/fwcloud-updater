@@ -22,7 +22,19 @@
 
 import { registerAs } from '@nestjs/config';
 
-export default registerAs('app', () => ({
+export default registerAs('updater', () => ({
   host: process.env.LISTEN_HOST || 'localhost',
   port: process.env.LISTEN_PORT || 3132,
+
+  // Enable HTTPS protocol for the web server.
+  https: process.env.HTTPS_ENABLED === 'false' ? false : true,
+
+  // Path to certificate file for the web server.
+  cert: process.env.HTTPS_CERT || './config/tls/fwcloud-updater.crt',
+
+  // Path to key file for the web server.
+  key: process.env.HTTPS_KEY || './config/tls/fwcloud-updater.key',
+
+  // Path to CA bundle file for the web server.
+  ca_bundle: process.env.HTTPS_CA_BUNDLE || ''
 }));

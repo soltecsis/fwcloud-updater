@@ -10,8 +10,10 @@ yarn-debug.log*
 yarn-error.log*
 lerna-debug.log*
 
+config/tls/
 .env
 .pid
+nohup.out
 
 # OS
 .DS_Store

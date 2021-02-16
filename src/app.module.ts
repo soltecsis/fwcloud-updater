@@ -25,7 +25,7 @@ import { ConfigModule } from '@nestjs/config';
 import { UpdatesModule } from './updates/updates.module';
 import { LogsModule } from './logs/logs.module';
 
-import appConfig from '../config/app';
+import appConfig from '../config/updater';
 import updatesConfig from '../config/updates';
 import { AuthMiddleware } from './middleware/auth.middleware';
 import { LogRequestMiddleware } from './middleware/log-request.middleware';

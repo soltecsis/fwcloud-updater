@@ -20,6 +20,19 @@
     },
     {
       "type": "node",
+      "runtimeVersion": "14.15.1",
+      "request": "launch",
+      "name": "Run FWCloud-Updater",
+      "skipFiles": [
+        "<node_internals>/**"
+      ],
+      "program": "${workspaceFolder}/dist/src/main.js",
+      "outFiles": [
+        "${workspaceFolder}/dist/**/*.js"
+      ]
+    },
+    {
+      "type": "node",
       "request": "launch",
       "name": "Tests",
       "program": "${workspaceRoot}/node_modules/jest/bin/jest",
