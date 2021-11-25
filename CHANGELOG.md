@@ -5,8 +5,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
-### Security
-- Updated npm module axios from 0.21.0 to 0.21.1.
+### Fixed
+- Updated npm modules.
 
 
 ## [1.0.7] - 2020-12-07
