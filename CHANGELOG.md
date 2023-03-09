@@ -5,6 +5,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+### Added
+- Task in package.json file for TLS certificates update.
+- Script for TLS certificate update.
+
 ### Fixed
 - Update NestJS to version 8.
 - Updated npm modules.
