@@ -55,6 +55,7 @@ async function bootstrap() {
   await app.listen(port,host);
   log.info(`Listening on http${config.get('updater.host') ? 's' : ''}://${host}:${port}`);
 
+  // If the service is started successfully then store the PID in the file.
   fs.writeFileSync('.pid',`${process.pid}`);
 
   function signalHandler (signal: 'SIGINT' | 'SIGTERM') {
@@ -62,6 +63,7 @@ async function bootstrap() {
     fs.unlink('.pid',err => {
       log.info(`------- Application stopped --------`);
       app.close();
+      // This pause before process exit is necessary for logs to appear in log file.
       setTimeout(() => process.exit(0), 100);
     });
   }
