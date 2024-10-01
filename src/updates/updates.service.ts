@@ -26,9 +26,9 @@ import { UpdatesServiceConfig, Apps, Versions } from './updates.model';
 import { LogsService } from '../logs/logs.service';
 import * as cmp from 'semver-compare';
 import * as fs from 'fs';
-import * as branch from 'git-branch';
 const child = require('child-process-promise');
 const axios = require('axios').default;
+const { exec } = require('child_process');
 
 @Injectable()
 export class UpdatesService {
@@ -55,7 +55,7 @@ export class UpdatesService {
 
     let remoteURL = '';
     try {
-      const gitBranch = await branch(this._cfg[app].installDir);
+      const gitBranch = await this.getGitBranch(this._cfg[app].installDir);
       remoteURL = `${this._cfg[app].versionURL}/${gitBranch}/package.json`;
       remoteJson = await axios.get(remoteURL);
     } catch (err) { 
@@ -80,6 +80,18 @@ export class UpdatesService {
     }
 
     return versions;
+  }
+
+  async getGitBranch(dir: string): Promise<string> {
+    return new Promise((resolve, reject) => {
+      exec('git rev-parse --abbrev-ref HEAD', { cwd: dir }, (err, stdout, stderr) => {
+        if (err) {
+          reject(`Error getting git branch: ${stderr}`);
+        } else {
+          resolve(stdout.trim());
+        }
+      });
+    });
   }
 
   async runUpdate(app: Apps): Promise<void> {
