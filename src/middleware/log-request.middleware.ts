@@ -23,14 +23,16 @@
 import { Injectable, NestMiddleware } from '@nestjs/common';
 import { LogsService } from 'src/logs/logs.service';
 import { Request } from 'express';
+import { functionNext } from './auth.middleware';
 
 @Injectable()
 export class LogRequestMiddleware implements NestMiddleware {
+  constructor(private log: LogsService) {}
 
-  constructor (private log: LogsService) {}
-
-  use(req: Request, res: Response, next: Function) {
-    this.log.http(`${req.ip}|HTTP/${req.httpVersion}|${req.method.toUpperCase()}|${req.originalUrl}`);
+  use(req: Request, res: Response, next: functionNext) {
+    this.log.http(
+      `${req.ip}|HTTP/${req.httpVersion}|${req.method.toUpperCase()}|${req.originalUrl}`,
+    );
     next();
   }
 }

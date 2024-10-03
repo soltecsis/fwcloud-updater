@@ -25,52 +25,53 @@ import { UpdatesService } from './updates.service';
 import { UpdatesServiceConfig, Apps } from './updates.model';
 import { LogsService } from '../logs/logs.service';
 import { ConfigService } from '@nestjs/config';
-const axios = require('axios').default;
-const child = require('child-process-promise');
+import axios from 'axios';
+import * as child from 'child-process-promise';
 
 describe('UpdatesService', () => {
   let service: UpdatesService;
-  let configService: ConfigService;
-  let cfg:UpdatesServiceConfig;
+  let cfg: UpdatesServiceConfig;
 
-  const mockLogsService = {
+  const mockLogsService: { info: jest.Mock; error: jest.Mock } = {
     info: jest.fn(),
     error: jest.fn(),
   };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      providers: [UpdatesService,
+      providers: [
+        UpdatesService,
         {
-        provide: ConfigService,
-        useValue: {
-          get: (): UpdatesServiceConfig => {
+          provide: ConfigService,
+          useValue: {
+            get: (): UpdatesServiceConfig => {
               return {
                 api: {
                   versionURL: '',
-                  installDir: './test/DATA/NO_VERSION'
+                  installDir: './test/DATA/NO_VERSION',
                 },
                 ui: {
                   versionURL: '',
-                  installDir: './test'
+                  installDir: './test',
                 },
                 updater: {
-                  versionURL:'',
-                  installDir:'./test/directory_not_exists'
+                  versionURL: '',
+                  installDir: './test/directory_not_exists',
                 },
                 websrv: {
                   versionURL: '',
-                  installDir: './test/DATA'
-                }
+                  installDir: './test/DATA',
+                },
               };
             },
           },
         },
-        { provide: LogsService, useValue: mockLogsService },],
+        { provide: LogsService, useValue: mockLogsService },
+      ],
     }).compile();
 
     service = module.get<UpdatesService>(UpdatesService);
-    cfg = <UpdatesServiceConfig>module.get<ConfigService>(ConfigService).get('updates');
+    cfg = module.get<ConfigService>(ConfigService).get('updates');
 
     axios.get = jest.fn().mockResolvedValue({});
     child.spawn = jest.fn().mockResolvedValue({});
@@ -105,7 +106,7 @@ describe('UpdatesService', () => {
       expect(await service.compareVersions(Apps.API)).toBeNull();
       expect(mockLogsService.error).toHaveBeenCalled();
       expect(mockLogsService.error.mock.calls[0][0]).toEqual(
-        "No local version found updating fwcloud-api",
+        'No local version found updating fwcloud-api',
       );
     });
 
@@ -113,26 +114,37 @@ describe('UpdatesService', () => {
       expect(await service.compareVersions(Apps.WEBSRV)).toBeNull();
       expect(mockLogsService.error).toHaveBeenCalled();
       expect(mockLogsService.error.mock.calls[0][0]).toEqual(
-        "No remote version found updating fwcloud-websrv",
+        'No remote version found updating fwcloud-websrv',
       );
     });
 
     it('should update', async () => {
-      axios.get = jest.fn().mockResolvedValue({ data: { version: "1.1.1" } });
-      expect(await service.compareVersions(Apps.WEBSRV)).toEqual({"current": "1.0.7", "last": "1.1.1", "needsUpdate": true});
+      axios.get = jest.fn().mockResolvedValue({ data: { version: '1.1.1' } });
+      expect(await service.compareVersions(Apps.WEBSRV)).toEqual({
+        current: '1.0.7',
+        last: '1.1.1',
+        needsUpdate: true,
+      });
     });
 
     it('should not update (same version)', async () => {
-      axios.get = jest.fn().mockResolvedValue({ data: { version: "1.0.7" } });
-      expect(await service.compareVersions(Apps.WEBSRV)).toEqual({"current": "1.0.7", "last": "1.0.7", "needsUpdate": false});
+      axios.get = jest.fn().mockResolvedValue({ data: { version: '1.0.7' } });
+      expect(await service.compareVersions(Apps.WEBSRV)).toEqual({
+        current: '1.0.7',
+        last: '1.0.7',
+        needsUpdate: false,
+      });
     });
 
     it('should not update (last less than current)', async () => {
-      axios.get = jest.fn().mockResolvedValue({ data: { version: "1.0.0" } });
-      expect(await service.compareVersions(Apps.WEBSRV)).toEqual({"current": "1.0.7", "last": "1.0.0", "needsUpdate": false});
+      axios.get = jest.fn().mockResolvedValue({ data: { version: '1.0.0' } });
+      expect(await service.compareVersions(Apps.WEBSRV)).toEqual({
+        current: '1.0.7',
+        last: '1.0.0',
+        needsUpdate: false,
+      });
     });
   });
-
 
   describe('runUpdate', () => {
     it('error directory not found', async () => {
@@ -146,54 +158,80 @@ describe('UpdatesService', () => {
     });
 
     it('should launch fwcloud-ui update', async () => {
-      expect(await service.runUpdate(Apps.UI)).resolves;
+      await expect(service.runUpdate(Apps.UI)).resolves.toBeUndefined();
       expect(child.spawn).toHaveBeenCalled();
-      expect(child.spawn.mock.calls[0]).toEqual(['npm',['run','update'], { cwd: cfg[Apps.UI].installDir }]);
+      expect(child.spawn.mock.calls[0]).toEqual([
+        'npm',
+        ['run', 'update'],
+        { cwd: cfg[Apps.UI].installDir },
+      ]);
     });
 
     it('should launch fwcloud-websrv update', async () => {
-      expect(await service.runUpdate(Apps.WEBSRV)).resolves;
-      await new Promise((resolve) => { 
+      expect(service.runUpdate(Apps.WEBSRV));
+      await new Promise((resolve) => {
         setTimeout(() => {
           expect(child.spawn).toHaveBeenCalled();
-          expect(child.spawn.mock.calls[0]).toEqual(['npm',['run','update'], { cwd: cfg[Apps.WEBSRV].installDir }]); 
-          expect(child.spawn.mock.calls[1]).toEqual(['npm',['run','start:bg'], { cwd: cfg[Apps.WEBSRV].installDir, detached: true, stdio: 'ignore' }]); 
-          resolve({}); 
-        },1100);
+          expect(child.spawn.mock.calls[0]).toEqual([
+            'npm',
+            ['run', 'update'],
+            { cwd: cfg[Apps.WEBSRV].installDir },
+          ]);
+          expect(child.spawn.mock.calls[1]).toEqual([
+            'npm',
+            ['run', 'start:bg'],
+            {
+              cwd: cfg[Apps.WEBSRV].installDir,
+              detached: true,
+              stdio: 'ignore',
+            },
+          ]);
+          resolve({});
+        }, 1100);
       });
     });
 
     it('should launch fwcloud-api update', async () => {
-      expect(await service.runUpdate(Apps.API)).resolves;
-      await new Promise((resolve) => { 
+      expect(service.runUpdate(Apps.API));
+      await new Promise((resolve) => {
         setTimeout(() => {
           expect(child.spawn).toHaveBeenCalled();
-          expect(child.spawn.mock.calls[0]).toEqual(['npm',['run','update'], { cwd: cfg[Apps.API].installDir }]); 
-          expect(child.spawn.mock.calls[1]).toEqual(['npm',['run','start:bg'], { cwd: cfg[Apps.API].installDir, detached: true, stdio: 'ignore' }]); 
-          resolve({}); 
-        },1100);
+          expect(child.spawn.mock.calls[0]).toEqual([
+            'npm',
+            ['run', 'update'],
+            { cwd: cfg[Apps.API].installDir },
+          ]);
+          expect(child.spawn.mock.calls[1]).toEqual([
+            'npm',
+            ['run', 'start:bg'],
+            { cwd: cfg[Apps.API].installDir, detached: true, stdio: 'ignore' },
+          ]);
+          resolve({});
+        }, 1100);
       });
     });
 
     it('should not launch fwcloud-updater update', async () => {
       const module: TestingModule = await Test.createTestingModule({
-        providers: [UpdatesService,
+        providers: [
+          UpdatesService,
           {
-          provide: ConfigService,
-          useValue: {
-            get: () => {
+            provide: ConfigService,
+            useValue: {
+              get: () => {
                 return {
                   updater: {
-                    versionURL:'',
-                    installDir:'./test'
-                  }
+                    versionURL: '',
+                    installDir: './test',
+                  },
                 };
               },
             },
           },
-          { provide: LogsService, useValue: mockLogsService },],
+          { provide: LogsService, useValue: mockLogsService },
+        ],
       }).compile();
-  
+
       service = module.get<UpdatesService>(UpdatesService);
 
       await expect(service.runUpdate(Apps.UPDATER)).rejects.toThrow(
@@ -204,7 +242,5 @@ describe('UpdatesService', () => {
         'Error fwcloud-updater con only update fwcloud-websrv, fwcloud-api and fwcloud-ui',
       );
     });
-
   });
-
 });

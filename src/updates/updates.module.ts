@@ -28,6 +28,6 @@ import { UpdatesService } from './updates.service';
 @Module({
   controllers: [UpdatesController],
   providers: [UpdatesService],
-  imports: [LogsModule]
+  imports: [LogsModule],
 })
 export class UpdatesModule {}
