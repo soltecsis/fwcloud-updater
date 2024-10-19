@@ -35,13 +35,14 @@ async function bootstrap() {
     const httpsOptions = {
       key: fs.readFileSync(config.get('updater.key')).toString(),
       cert: fs.readFileSync(config.get('updater.cert')).toString(),
-      ca: config.get('updater.ca_bundle') ? fs.readFileSync(config.get('updater.ca_bundle')).toString() : null
-    }
-    app.close();
-    app = await NestFactory.create(AppModule,{httpsOptions: httpsOptions});
+      ca: config.get('updater.ca_bundle')
+        ? fs.readFileSync(config.get('updater.ca_bundle')).toString()
+        : null,
+    };
+    void app.close();
+    app = await NestFactory.create(AppModule, { httpsOptions: httpsOptions });
     config = app.get<ConfigService>(ConfigService);
   }
-
 
   const log: LogsService = app.get<LogsService>(LogsService);
   const host: string = config.get('updater.host');
@@ -50,19 +51,23 @@ async function bootstrap() {
   app.use(cookieParser());
 
   log.info(`------- Starting application -------`);
-  log.info(`FWCloud Updater v${JSON.parse(fs.readFileSync('package.json').toString()).version} (PID=${process.pid})`);
+  log.info(
+    `FWCloud Updater v${(JSON.parse(fs.readFileSync('package.json').toString()) as { version: string }).version} (PID=${process.pid})`,
+  );
 
-  await app.listen(port,host);
-  log.info(`Listening on http${config.get('updater.host') ? 's' : ''}://${host}:${port}`);
+  await app.listen(port, host);
+  log.info(
+    `Listening on http${config.get('updater.host') ? 's' : ''}://${host}:${port}`,
+  );
 
   // If the service is started successfully then store the PID in the file.
-  fs.writeFileSync('.pid',`${process.pid}`);
+  fs.writeFileSync('.pid', `${process.pid}`);
 
-  function signalHandler (signal: 'SIGINT' | 'SIGTERM') {
+  function signalHandler(signal: 'SIGINT' | 'SIGTERM') {
     log.info(`Received signal: ${signal}`);
-    fs.unlink('.pid',err => {
+    fs.unlink('.pid', () => {
       log.info(`------- Application stopped --------`);
-      app.close();
+      void app.close();
       // This pause before process exit is necessary for logs to appear in log file.
       setTimeout(() => process.exit(0), 100);
     });
@@ -70,4 +75,4 @@ async function bootstrap() {
   process.on('SIGINT', signalHandler);
   process.on('SIGTERM', signalHandler);
 }
-bootstrap();
+void bootstrap();

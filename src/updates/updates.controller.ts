@@ -20,23 +20,22 @@
     along with FWCloud.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-import { Controller, Get, Put, Req } from '@nestjs/common';
+import { Controller, Get, Put } from '@nestjs/common';
 import { UpdatesService } from './updates.service';
 import { Apps, UpdatesInfo } from './updates.model';
-import { Request } from 'express';
 
 @Controller('updates')
 export class UpdatesController {
   constructor(private readonly updatesService: UpdatesService) {}
 
   @Get()
-  async getUpdatesInfo(@Req() request: Request): Promise<UpdatesInfo> {
+  async getUpdatesInfo(): Promise<UpdatesInfo> {
     const updatesInfo: UpdatesInfo = {
       websrv: await this.updatesService.compareVersions(Apps.WEBSRV),
       ui: await this.updatesService.compareVersions(Apps.UI),
       api: await this.updatesService.compareVersions(Apps.API),
-      updater: await this.updatesService.compareVersions(Apps.UPDATER)
-    }
+      updater: await this.updatesService.compareVersions(Apps.UPDATER),
+    };
 
     return updatesInfo;
   }

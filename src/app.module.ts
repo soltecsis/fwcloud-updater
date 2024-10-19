@@ -34,13 +34,11 @@ import { LogRequestMiddleware } from './middleware/log-request.middleware';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [
-        appConfig,
-        updatesConfig
-      ],
+      load: [appConfig, updatesConfig],
     }),
     UpdatesModule,
-    LogsModule],
+    LogsModule,
+  ],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
