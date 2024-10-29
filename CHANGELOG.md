@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.1] - 2024-10-29
+### Changed
+- Default `LISTEN_HOST` config option value from `localhost` to `127.0.0.1` in order to avoid that with the default configuration the process starts listening only in IPv6 if `localhost` resolves in the `/etc/hosts` file to the IPv6 IP.
+
+### Fixed
+- Updated Node.js packages to the latest versions.
+
+
 ## [2.0.0] - 2024-10-19
 ### Added
 - Added fresh_build_start npm run script.
