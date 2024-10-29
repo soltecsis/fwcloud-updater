@@ -23,7 +23,7 @@
 import { registerAs } from '@nestjs/config';
 
 export default registerAs('updater', () => ({
-  host: process.env.LISTEN_HOST || 'localhost',
+  host: process.env.LISTEN_HOST || '127.0.0.1',
   port: process.env.LISTEN_PORT || 3132,
 
   // Enable HTTPS protocol for the web server.
