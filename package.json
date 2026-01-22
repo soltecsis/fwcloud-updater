@@ -35,10 +35,10 @@
     "fresh_build_start": "clear && rm -rf node_modules package-lock.json && npm i && npm run build && npm run start"
   },
   "dependencies": {
-    "@nestjs/common": "11.1.11",
-    "@nestjs/config": "4.0.2",
-    "@nestjs/core": "11.1.11",
-    "@nestjs/platform-express": "11.1.11",
+    "@nestjs/common": "11.1.12",
+    "@nestjs/config": "^4.0.2",
+    "@nestjs/core": "11.1.12",
+    "@nestjs/platform-express": "11.1.12",
     "@types/cookie-parser": "1.4.10",
     "axios": "1.13.2",
     "child-process-promise": "2.2.1",
@@ -47,17 +47,17 @@
     "winston": "3.19.0"
   },
   "devDependencies": {
-    "@nestjs/cli": "11.0.14",
-    "@nestjs/testing": "11.1.11",
+    "@nestjs/cli": "11.0.16",
+    "@nestjs/testing": "11.1.12",
     "@types/express": "5.0.6",
     "@types/jest": "30.0.0",
-    "@typescript-eslint/eslint-plugin": "8.53.0",
-    "@typescript-eslint/parser": "8.53.0",
+    "@typescript-eslint/eslint-plugin": "8.53.1",
+    "@typescript-eslint/parser": "8.53.1",
     "eslint": "9.39.2",
     "eslint-config-prettier": "10.1.8",
     "eslint-plugin-prettier": "5.5.5",
     "jest": "30.2.0",
-    "prettier": "3.7.4",
+    "prettier": "3.8.1",
     "ts-jest": "29.4.6",
     "typescript": "5.9.3"
   },
