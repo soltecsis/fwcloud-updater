@@ -38,7 +38,7 @@
     "@nestjs/common": "11.1.12",
     "@nestjs/config": "^4.0.2",
     "@nestjs/core": "11.1.12",
-    "@nestjs/platform-express": "11.1.12",
+    "@nestjs/platform-express": "11.1.16",
     "@types/cookie-parser": "1.4.10",
     "axios": "1.13.2",
     "child-process-promise": "2.2.1",
