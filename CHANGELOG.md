@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+### Fixed
+- Updated direct and transitive dependencies to resolve known npm security vulnerabilities.
+
 ## [2.0.5] - 2026-08-07
 ### Fixed
 - Refreshed package-lock.json to pull in patched transitive dependencies.
@@ -94,4 +98,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GET /updates : Returns current and last versions of api, ui and updater.
 - PUT /updates/ui : Runs update procedure for fwcloud-ui.
 - PUT /updates/api : Runs update procedure for fwcloud-api.
-- Autentication middleware. 
+- Authentication middleware.
