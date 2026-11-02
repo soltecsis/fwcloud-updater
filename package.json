@@ -35,12 +35,12 @@
     "fresh_build_start": "clear && rm -rf node_modules package-lock.json && npm i && npm run build && npm run start"
   },
   "dependencies": {
-    "@nestjs/common": "11.1.28",
-    "@nestjs/config": "^4.0.3",
-    "@nestjs/core": "11.1.28",
-    "@nestjs/platform-express": "11.1.28",
+    "@nestjs/common": "11.2.8",
+    "@nestjs/config": "4.0.4",
+    "@nestjs/core": "11.2.8",
+    "@nestjs/platform-express": "11.2.8",
     "@types/cookie-parser": "1.4.10",
-    "axios": "1.19.0",
+    "axios": "1.21.0",
     "child-process-promise": "2.2.1",
     "cookie-parser": "1.4.7",
     "semver-compare": "1.0.0",
@@ -49,8 +49,8 @@
   "devDependencies": {
     "@eslint/eslintrc": "3.3.5",
     "@eslint/js": "10.0.1",
-    "@nestjs/cli": "11.0.19",
-    "@nestjs/testing": "11.1.28",
+    "@nestjs/cli": "11.0.24",
+    "@nestjs/testing": "11.2.8",
     "@types/express": "5.0.6",
     "@types/jest": "30.0.0",
     "@types/node": "25.6.0",
@@ -60,15 +60,26 @@
     "eslint-config-prettier": "10.1.8",
     "eslint-plugin-prettier": "5.5.5",
     "globals": "17.4.0",
-    "jest": "30.3.0",
+    "jest": "30.5.2",
     "prettier": "3.8.2",
     "ts-jest": "29.4.9",
     "typescript": "6.0.2"
   },
   "overrides": {
-    "glob": "13.0.0",
+    "body-parser": "2.4.0",
+    "brace-expansion": "5.0.12",
     "cross-spawn": "7.0.6",
-    "lodash": "4.18.1"
+    "deepmerge": "4.1.1",
+    "fast-uri": "4.2.3",
+    "follow-redirects": "1.16.2",
+    "glob": "14.0.3",
+    "handlebars": "4.7.10",
+    "js-yaml": "5.5.0",
+    "lodash": "4.18.1",
+    "minimatch": "11.0.4",
+    "multer": "2.5.0",
+    "proxy-addr": "2.0.8",
+    "qs": "6.17.1"
   },
   "jest": {
     "moduleFileExtensions": [
