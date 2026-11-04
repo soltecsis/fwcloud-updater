@@ -3,6 +3,7 @@ const prettier = require("eslint-plugin-prettier");
 const globals = require("globals");
 const tsParser = require("@typescript-eslint/parser");
 const js = require("@eslint/js");
+const jest = require("eslint-plugin-jest");
 
 const {
     FlatCompat,
@@ -49,4 +50,15 @@ module.exports = [
     // TODO: Add this rule. Reivew the codebase and fix the issues.
     '@typescript-eslint/no-unsafe-member-access': 'off',
   },
+}, {
+    files: ["**/*.{spec,test}.{ts,js}"],
+    plugins: { jest },
+    rules: {
+        "jest/no-focused-tests": "error",
+        // The plugin does not recognize Jest's non-parameterized concurrent.only.
+        "no-restricted-syntax": ["error", {
+            selector: "MemberExpression[object.type='MemberExpression'][object.object.name=/^(it|test)$/][object.property.name='concurrent']:matches([property.name='only'], [property.value='only'])",
+            message: "Unexpected focused test",
+        }],
+    },
 }];
