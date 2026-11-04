@@ -24,7 +24,8 @@ outside Phase 1. Phase 2 adds test reports and a reference coverage measurement,
 as described in section 5. Phase 3 makes the suite hermetic and adds
 authorization and HTTP integration tests, as described in section 6. Phase 4
 adds Gitleaks secret detection and the initial history audit, as described in
-section 7.
+section 7. Phase 5 adds dependency SCA and an SBOM, following FWCloud API's
+Phase 4 Trivy configuration and evidence conventions, as described in section 8.
 
 ## 2. Current technical decisions
 
@@ -66,6 +67,7 @@ lockfile change is the root package's Node engine metadata.
 | 2 | Validated Jest/JUnit reports, execution metadata and a Node 22 coverage reference | Implemented; local verification recorded in section 5; GitHub acceptance pending | Every matrix cell uploads test evidence, Node 22 uploads validated coverage, failures preserve artifacts and the summary contains aggregates only |
 | 3 | Hermetic unit tests, authorization coverage and an HTTP integration suite | Implemented; local verification recorded in section 6; GitHub acceptance pending | The suite passes inside and outside Git on Node 20/22/24, every authentication rejection branch is covered and unauthenticated HTTP requests cannot reach update execution |
 | 4 | Gitleaks secret detection without repository-controlled suppressions, sanitized evidence and an initial history audit | Implemented; local verification and audit recorded in section 7; GitHub acceptance and the hosted full-history run pending | Every event scans its intended range, findings and scanner errors fail `updater-ci`, only aggregate metadata is published and the hosted `workflow_dispatch` audit outcome is recorded |
+| 5 | Dependency SCA and CycloneDX SBOM with verified Trivy | Implemented; local verification and initial scan recorded in section 8; GitHub acceptance pending | Runtime/development inventories agree, HIGH/CRITICAL findings and incomplete scans block `updater-ci`, and security evidence is retained on failure |
 
 Further CI extensions require separate scope and acceptance criteria.
 
@@ -874,3 +876,297 @@ cleanup, no `gitleaks.*` file remained in the runner temporary directory, and
   analyzed commit, the commit and finding counts and, for any finding, its
   classification and remediation as described in 7.5.
 - [ ] Record the reviewer and date.
+
+## 8. Phase 5 — Dependency SCA and SBOM with Trivy
+
+### 8.1. Scope and execution
+
+The dedicated `sca` job (`FWCloud-Updater SCA and SBOM`) follows Phase 4 of
+FWCloud API on `ENS`. It has a 30-minute timeout and checks out
+`ANALYSIS_COMMIT` explicitly, with checkout credentials persistence disabled.
+It uses Node's built-in modules for validation, without `npm ci`, npm dependency
+installation or project lifecycle scripts. The scan includes runtime and
+development dependencies, including direct, transitive and optional npm packages
+represented in the root `package-lock.json`.
+
+This is an inventory of the repository lockfile at the analyzed revision. It
+does not assess operating system packages on deployment targets, packages added
+by external installers, the complete installation or upgrade procedure, or
+distribution artifacts built outside this workflow. It does not establish the
+security of the complete deployed system. License information available from the
+lockfile is not a complete license audit without installed package contents.
+See Trivy's [npm coverage documentation](https://www.trivy.dev/docs/latest/guide/coverage/language/nodejs/).
+
+### 8.2. Configuration and binary integrity
+
+[`scripts/trivy-config.json`](../scripts/trivy-config.json) is copied from the
+API and defines:
+
+| Setting | Value |
+| --- | --- |
+| Trivy version | `0.74.0` |
+| Official Linux x64 archive | `trivy_0.74.0_Linux-64bit.tar.gz` |
+| Archive SHA-256 | `2ae6fe3ee734b7fdf11335663e18c75ea12dccc76062f09f164a3b0f8be4371a` |
+| Blocking severities | `HIGH`, `CRITICAL` |
+| Native findings exit code | `5` |
+| CycloneDX version | `1.7` |
+
+The workflow downloads the archive from the official
+[Aqua Security release](https://github.com/aquasecurity/trivy/releases/tag/v0.74.0),
+checks its SHA-256 before extraction and verifies the installed version. An
+unexpected version fails both installation and report validation. The cache is
+isolated under the runner's temporary directory; project dependencies are not
+installed to populate it.
+
+All Trivy commands use these restrictions:
+
+```bash
+export TRIVY_CONFIG=/dev/null
+export TRIVY_IGNOREFILE=/dev/null
+export TRIVY_TIMEOUT=10m
+export TRIVY_DISABLE_TELEMETRY=true
+export TRIVY_SKIP_VERSION_CHECK=true
+```
+
+These disable implicit repository configuration and ignore files, telemetry and
+version checks. They do not disable vulnerability database updates. No exception
+or repository-controlled suppression is currently enabled.
+
+For local verification, download and verify the binary in a temporary directory:
+
+```bash
+TRIVY_VERSION=$(node -p 'require("./scripts/trivy-config.json").version')
+TRIVY_ARCHIVE=$(node -p 'require("./scripts/trivy-config.json").archive')
+TRIVY_ARCHIVE_SHA256=$(node -p 'require("./scripts/trivy-config.json").archiveSha256')
+TRIVY_WORKDIR=$(mktemp -d)
+curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 \
+  "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/${TRIVY_ARCHIVE}" \
+  --output "$TRIVY_WORKDIR/$TRIVY_ARCHIVE"
+printf '%s  %s\n' "$TRIVY_ARCHIVE_SHA256" "$TRIVY_WORKDIR/$TRIVY_ARCHIVE" \
+  | sha256sum --check --strict
+tar -xzf "$TRIVY_WORKDIR/$TRIVY_ARCHIVE" -C "$TRIVY_WORKDIR" trivy
+export TRIVY_BINARY="$TRIVY_WORKDIR/trivy"
+export TRIVY_CACHE_DIR="$TRIVY_WORKDIR/cache"
+"$TRIVY_BINARY" --version
+node --test scripts/trivy-policy.test.cjs
+```
+
+Use a clean checkout without `node_modules` for the same inventory scope as CI.
+The complete failure handling and evidence collection commands are in the
+[workflow](workflows/nodejs.yml); the following commands show each scanner
+operation independently.
+
+### 8.3. Reports and blocking policy
+
+The workflow removes old dependency evidence before starting. It generates the
+complete vulnerability report once, including every severity and vulnerabilities
+without an available fix:
+
+```bash
+mkdir -p reports/dependencies
+"$TRIVY_BINARY" fs . \
+  --scanners vuln --pkg-types library \
+  --include-dev-deps --list-all-pkgs --no-progress \
+  --severity UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL \
+  --ignore-unfixed=false --exit-code 0 \
+  --format json --output reports/dependencies/trivy.json
+```
+
+Report generation uses exit code `0` for findings so that the full JSON survives
+for the separate gate. Scanner execution failures still return nonzero codes.
+The workflow captures the scanner's native code before `tee` can replace it, and
+also fails if saving the log fails.
+
+An independent scan generates the dependency SBOM. CycloneDX output does not
+enable vulnerability scanning by default; vulnerability evidence remains in the
+separate JSON report.
+
+```bash
+"$TRIVY_BINARY" fs . \
+  --include-dev-deps --no-progress \
+  --format cyclonedx --output reports/dependencies/sbom.cdx.json
+"$TRIVY_BINARY" version --format json > reports/dependencies/trivy-version.json
+```
+
+The native severity gate converts the existing vulnerability report, without
+rescanning dependencies or updating findings:
+
+```bash
+"$TRIVY_BINARY" convert \
+  --format table --scanners vuln --severity HIGH,CRITICAL --exit-code 5 \
+  reports/dependencies/trivy.json > reports/dependencies/blocking.txt 2>&1
+```
+
+| Condition | Result |
+| --- | --- |
+| `HIGH` or `CRITICAL`, with or without a fix | Native gate exits `5`; CI fails |
+| Only `UNKNOWN`, `LOW` or `MEDIUM` | Reported; native gate exits `0` |
+| Any other nonzero gate exit code | Operational error; CI fails |
+| Missing or invalid lockfile, empty runtime/development inventory | CI fails |
+| Missing, malformed or inconsistent reports or version/database metadata | CI fails |
+| Failed/skipped scan, SBOM generation, native policy test or validation | CI fails |
+
+The gate is not run with `--ignore-unfixed`. The initial scan explicitly sets
+`--ignore-unfixed=false`, so findings without a fix remain eligible for blocking.
+A clean `npm audit` result does not establish a clean Trivy result: the tools use
+different vulnerability data sources and may group findings differently.
+
+### 8.4. Validation and artifacts
+
+[`scripts/trivy-report.cjs`](../scripts/trivy-report.cjs) adapts the API collector
+and writes `metadata.json` with one of three statuses:
+
+- `success`: complete, valid evidence with no blocking findings.
+- `findings`: complete, valid evidence with blocking findings.
+- `error`: missing, malformed or inconsistent evidence, or an operational error.
+
+Both `findings` and `error` fail validation. Metadata records the actual analyzed
+commit, Trivy/database versions and timestamps, root lockfile SHA-256, package
+and component counts, dependency scopes/relationships, vulnerability counts by
+severity and native scan/SBOM/policy exit codes. The collector verifies the
+checkout against `ANALYSIS_COMMIT`, requires the root lockfile inventory, checks
+runtime and development coverage, validates CycloneDX 1.7 and dependency
+references, and compares the SBOM npm package identities with the scan inventory.
+It parses lockfile formats 2 and 3 and compares their unique dependency identities
+with the root scan inventory, so two equally truncated reports cannot pass.
+The report's scanner version must match the configured version, and database
+metadata must include a positive integer schema version and valid update/next
+update timestamps. It also cross-checks the native gate result against the
+reported HIGH/CRITICAL counts. Detailed findings are excluded from metadata and
+Actions summaries.
+
+Evidence collection and upload use `if: always()`. The gate retains its native
+failure after collecting context and metadata; uploading evidence cannot turn a
+failed scan into a passing job. When the scanner cannot produce reports, the
+artifact contains the available partial evidence and the job still fails. Missing
+files are not fabricated into successful reports.
+
+The artifact is named `updater-sca-sbom-<RUN_ID>-<ATTEMPT>`, with 90 days of requested
+retention, and contains these files under `reports/dependencies/` when available:
+
+| File | Format and purpose |
+| --- | --- |
+| `trivy.json` | Full Trivy JSON vulnerability and npm package inventory |
+| `sbom.cdx.json` | Independent CycloneDX 1.7 JSON dependency inventory |
+| `trivy-version.json` | Trivy version and vulnerability database metadata |
+| `blocking.txt` | Native HIGH/CRITICAL table, or gate execution diagnostics |
+| `context.txt` | Revision, run/attempt, step outcomes and native exit codes |
+| `scan.log` | Vulnerability scanner execution diagnostics |
+| `sbom.log` | SBOM generation diagnostics |
+| `metadata.json` | Validated aggregate results and evidence errors |
+
+The detailed report and gate table contain dependency security findings and are
+available for artifact review. Actions summaries contain aggregates and execution
+context only. `updater-ci` now depends on `quality`, `test`, `secrets` and `sca`,
+and requires each result to equal `success`. A failed, cancelled, skipped or
+incomplete SCA job cannot produce a successful aggregate.
+
+### 8.5. Initial scan and remediation review
+
+The first complete local verification on 2026-11-04 analyzed revision
+`ff79444023e0ec8db5ea102cdabdeba299089820` in a temporary copy of tracked files,
+without `node_modules` or dependency installation. The cached official archive
+was checked against the configured SHA-256 before a fresh extraction. Trivy
+reported version `0.74.0`; vulnerability database schema version `2` had
+`UpdatedAt: 2026-11-04T07:16:25.226375897Z` and
+`NextUpdate: 2026-11-05T07:16:25.22637534Z`.
+
+Root lockfile SHA-256:
+`00267dd982bf452bed6005e4c99988f20a2bfa69330dfdf4eaca50760d892013`.
+
+| Initial result | Count |
+| --- | ---: |
+| Unique npm packages | 657 |
+| Runtime / development packages | 162 / 495 |
+| Direct / indirect packages | 30 / 627 |
+| SBOM components / npm components | 658 / 657 |
+| SBOM dependency entries | 659 |
+| `CRITICAL` / `HIGH` / `MEDIUM` / `LOW` / `UNKNOWN` | 0 / 0 / 0 / 0 / 0 |
+| Native scan / SBOM / gate exit codes | 0 / 0 / 0 |
+
+The complete vulnerability report was reviewed: there were no findings to
+remediate, defer or except. Dependency versions and overrides remain unchanged.
+No vulnerability exception was proposed. These results apply to this lockfile
+and database snapshot; future database updates can produce new findings even
+without dependency changes. The previously reported clean npm audit result was
+not used as Trivy acceptance evidence.
+
+### 8.6. Vulnerability exceptions
+
+No automatic exception mechanism is enabled. Adding `.trivyignore` or
+`trivy.yaml` does not change the CI policy because both inputs are disabled.
+A blocking finding must be remediated or remain blocking until an explicit
+exception is approved and its enforcement is implemented and tested.
+
+For each proposed exception, include a reviewable record in the change that
+requests it with:
+
+- The specific advisory/CVE identifier, package, affected version, dependency
+  scope/path, severity and reference to the scan artifact and analyzed commit.
+- A technical justification, applicability/exposure assessment, reason immediate
+  remediation is unavailable and any compensating controls.
+- A named responsible person, remediation or follow-up action, and an explicit
+  expiration date.
+- The explicit review decision, reviewer and approval date; proposals alone do
+  not authorize suppression.
+
+Any approved implementation must match only the reviewed finding, preserve the
+complete report and inventory, record the exception in evidence, and fail after
+expiration. Its tests must show that unrelated HIGH/CRITICAL findings, unfixed
+findings and scanner errors remain blocking. Removing or weakening the global
+severity gate, silently enabling ignore files, or treating scanner failures as
+accepted vulnerabilities is not an exception procedure. Review outstanding
+exceptions before expiration; remediate or obtain a new explicit review rather
+than silently extending them.
+
+### 8.7. Verification and hosted acceptance
+
+`npm run test:ci-tools` discovers the report-validator and native-policy tests
+through `scripts/*.test.cjs`. The native test is skipped when `TRIVY_BINARY` is
+absent in the quality job; `sca` sets it to the verified binary and runs that
+test explicitly before scanning. It exercises all severity levels, preserves
+unfixed HIGH/CRITICAL findings, checks their presence in `blocking.txt`, confirms
+conversion leaves the source report unchanged, and rejects malformed input.
+
+Local checks and controlled workflow-step results are recorded here separately
+from hosted acceptance. A synthetic blocking finding is test evidence, not an
+additional vulnerability in the project's initial scan.
+
+Verified on 2026-11-04, using Node `22.20.0` and the verified Trivy `0.74.0` binary:
+
+| Check | Result |
+| --- | --- |
+| `npm run test:ci-tools` with `TRIVY_BINARY` configured | 98 passed, none skipped; includes 23 report-validator tests and the native policy test |
+| Complete scan, independent SBOM, native gate and updated collector in a checkout without `node_modules` | Passed; all eight evidence files produced; initial scan counts reproduced |
+| Controlled real scan of a separate lockfile with `lodash@4.17.20` and development dependency `typescript@5.0.4` | Native gate exited `5`, metadata `findings`; two HIGH and two MEDIUM findings retained in the full report |
+| Exact workflow gate body with synthetic unfixed HIGH/CRITICAL findings | Exit `5`, metadata `findings`; finding retained in `blocking.txt`, absent from the Actions summary |
+| Exact workflow gate body with clean/LOW/MEDIUM reports | Exit `0`, metadata `success` |
+| Scanner/SBOM errors; missing, malformed or inconsistent evidence; unexpected version; skipped installation | Nonzero gate step and error metadata |
+| Scan, SBOM and gate log write failures | Nonzero step; `tee` cannot hide failure or replace the captured native exit code |
+| Aggregate shell step | All 256 success/failure/skipped/cancelled combinations checked; only four successful results accepted |
+| `npm run lint:ci` / `npm run format:ci` | Passed |
+| Actionlint `1.7.7`, all 25 workflow shell bodies and `git diff --check` | Passed; unavailable ShellCheck disabled in Actionlint |
+
+The controlled real scan detected `CVE-2021-23337` and `CVE-2026-4800` as HIGH
+findings in the deliberately vulnerable lodash fixture. Both identifiers appeared
+in `blocking.txt`; their reported fixes were `4.17.21` and `4.18.0`, respectively.
+This fixture changed only a temporary lockfile, without installation or changes
+to the project's dependencies. Synthetic unfixed findings cover the additional
+case where no fix is available. Local full-scan evidence is retained under the
+ignored `reports/dependencies/` directory for review; it is not a hosted artifact.
+
+The sandbox initially rejected Node subprocess calls to Git with `EPERM`; the
+tests and workflow verification passed when rerun outside that restriction.
+These are local checks of the commands and failure behavior, not a claim that
+the GitHub artifact service or branch protection has been exercised.
+
+Hosted acceptance remains pending:
+
+- Run the final implementation commit in Actions and record the run URL, tested
+  SHA, SCA result and aggregate result.
+- Review all eight security artifact files and the aggregate-only summary;
+  confirm the run/attempt artifact name and 90-day retention request.
+- Confirm artifact upload after a controlled HIGH finding and after scanner/SBOM
+  errors. Record the native failure and retained diagnostics.
+- Confirm branch protection requires `updater-ci`, and an unsuccessful or skipped
+  SCA result cannot pass that required check.
