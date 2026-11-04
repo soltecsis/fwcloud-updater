@@ -3,7 +3,7 @@
 ## 1. Objective and scope
 
 This document records the decisions, implementation and verification of the
-reproducible CI pipeline for `fwcloud-updater`. Update it in the same branch and PR
+CI pipeline for `fwcloud-updater`. Update it in the same branch and PR
 as the workflow so that implementation and acceptance evidence stay together.
 
 | Field | Value |
@@ -12,6 +12,8 @@ as the workflow so that implementation and acceptance evidence stay together.
 | Initial revision | `8b0a580` |
 | Integration target | `ENS` |
 | Execution platform | GitHub Actions, GitHub-hosted Ubuntu runners |
+| Reviewed integration revision | `04e39b3adf742f259611d017891e3f28903d2899` on `ENS` |
+| Acceptance and rollout | Open; effective branch protection and hosted negative cases are not verified |
 | Last updated | 2026-11-04 |
 
 Phase 1 covers dependency installation, code quality, builds, unit tests and a
@@ -27,6 +29,14 @@ adds Gitleaks secret detection and the initial history audit, as described in
 section 7. Phase 5 adds dependency SCA and an SBOM, following FWCloud API's
 Phase 4 Trivy configuration and evidence conventions, as described in section 8.
 The SonarQube integration follows API Phase 7 and is recorded in section 9.
+
+The current hosted evidence register, protection assessment and rollout state
+are in [section 10](#10-hosted-evidence-protection-and-rollout). Earlier local
+measurements remain historical evidence; they do not establish hosted acceptance.
+Here, **implemented** means code exists at the referenced commit, **deployed**
+means it has executed on a named branch, and **verified** means the specified
+evidence was inspected. A merged PR or a successful run alone does not close a
+phase. No phase has final acceptance while its listed closure items remain open.
 
 ## 2. Current technical decisions
 
@@ -64,11 +74,14 @@ lockfile change is the root package's Node engine metadata.
 
 | Phase | Delivery | Status | Closure criterion |
 | --- | --- | --- | --- |
-| 1 | Reproducible installation, separate quality/test jobs, execution controls and `updater-ci` | Implemented and verified locally; GitHub acceptance pending | Local checks pass, a PR to `ENS` passes every required job, event/cancellation behavior is verified and branch protection requires `updater-ci` |
-| 2 | Validated Jest/JUnit reports, execution metadata and a Node 22 coverage reference | Implemented; local verification recorded in section 5; GitHub acceptance pending | Every matrix cell uploads test evidence, Node 22 uploads validated coverage, failures preserve artifacts and the summary contains aggregates only |
-| 3 | Hermetic unit tests, authorization coverage and an HTTP integration suite | Implemented; local verification recorded in section 6; GitHub acceptance pending | The suite passes inside and outside Git on Node 20/22/24, every authentication rejection branch is covered and unauthenticated HTTP requests cannot reach update execution |
-| 4 | Gitleaks secret detection without repository-controlled suppressions, sanitized evidence and an initial history audit | Implemented; local verification and audit recorded in section 7; GitHub acceptance and the hosted full-history run pending | Every event scans its intended range, findings and scanner errors fail `updater-ci`, only aggregate metadata is published and the hosted `workflow_dispatch` audit outcome is recorded |
-| 5 | Dependency SCA and CycloneDX SBOM with verified Trivy | Implemented; local verification and initial scan recorded in section 8; GitHub acceptance pending | Runtime/development inventories agree, HIGH/CRITICAL findings and incomplete scans block `updater-ci`, and security evidence is retained on failure |
+| 1 | Reproducible installation, separate quality/test jobs, execution controls and `updater-ci` | Deployed on `ENS`; successful jobs verified; protection/cancellation acceptance open | Local checks pass, a PR to `ENS` passes every required job, event/cancellation behavior is verified and branch protection requires `updater-ci` |
+| 1b | Extended ESLint/Prettier coverage for configuration and CI scripts | Deployed on `ENS`; successful quality job and logs verified | Extended checks execute without changing application behavior; final protected rollout accepted |
+| 2 | Validated Jest/JUnit reports, execution metadata and a Node 22 coverage reference | Deployed on `ENS`; successful artifacts reviewed; hosted failure/rerun/retention checks open | Every matrix cell uploads test evidence, Node 22 uploads validated coverage, failures preserve artifacts and the summary contains aggregates only |
+| 3 | Hermetic unit tests, authorization coverage and an HTTP integration suite | Deployed on `ENS`; 61 tests per cell and coverage verified; final acceptance open | The suite passes inside and outside Git on Node 20/22/24, every authentication rejection branch is covered and unauthenticated HTTP requests cannot reach update execution |
+| 4 | Gitleaks secret detection without repository-controlled suppressions, sanitized evidence and an initial history audit | Deployed on `ENS`; sanitized push artifact reviewed; hosted negative/full-history checks open | Every event scans its intended range, findings and scanner errors fail `updater-ci`, only aggregate metadata is published and the hosted `workflow_dispatch` audit outcome is recorded |
+| 5 | Dependency SCA and CycloneDX SBOM with verified Trivy | Deployed on `ENS`; successful scan/SBOM reviewed; hosted failure checks open | Runtime/development inventories agree, HIGH/CRITICAL findings and incomplete scans block `updater-ci`, and security evidence is retained on failure |
+| 6 | SonarQube Cloud and blocking Quality Gate (API Phase 7) | Deployed on `ENS`; coverage import and passing gate verified; server configuration/negative checks open | Eligible executions pass the assigned gate; failure, exclusion and coverage-rerun evidence reviewed |
+| 7 | Effective protection, evidence acceptance and rollout | Documentation and 90-day test/coverage requests implemented locally; protection and promotion pending | `ENS`/`main` enforce `updater-ci`, acceptance evidence is complete, `main` passes and `devel` is aligned |
 
 Further CI extensions require separate scope and acceptance criteria.
 
@@ -201,26 +214,28 @@ cancellation or branch protection work as configured.
 
 ### 4.7. CI execution and acceptance evidence
 
-No hosted execution or branch protection change is claimed by this local
-implementation. Complete this record against the final implementation commit;
-results for an earlier revision do not automatically validate later changes.
+The original local implementation has now executed in GitHub. The successful
+path below was checked on 2026-11-04 by Codex (automated evidence review);
+full acceptance remains pending. Full per-phase references and remaining
+checks are recorded in section 10. Results for this revision do not automatically
+validate the subsequent retention/documentation changes.
 
 | Evidence | Reference / result |
 | --- | --- |
 | Implementation commits | `4b635b8` (npm and Node declarations), `cf3f589` (CI workflow); documentation included in this commit |
-| PR targeting `ENS` | Pending publication |
-| Complete Actions run and tested SHA | Pending |
-| `FWCloud-Updater Quality` | Pending |
-| `FWCloud-Updater Test (Node 20)` | Pending |
-| `FWCloud-Updater Test (Node 22)` | Pending |
-| `FWCloud-Updater Test (Node 24)` | Pending |
-| `updater-ci` | Pending |
-| Required check configured in branch protection | Pending |
-| Acceptance reviewer and date | Pending |
+| PR targeting `ENS` | [#104](https://github.com/soltecsis/fwcloud-updater/pull/104), merged; head `f630222f19316587ac30a89b84fe9a12518a8114` |
+| Complete Actions run and tested SHA | [41826696674, attempt 1](https://github.com/soltecsis/fwcloud-updater/actions/runs/41826696674), `04e39b3adf742f259611d017891e3f28903d2899` |
+| `FWCloud-Updater Quality` | Success; lint, format and CI tooling steps successful |
+| `FWCloud-Updater Test (Node 20)` | Success; Node `20.20.2`, npm `11.21.1`, 61 passed |
+| `FWCloud-Updater Test (Node 22)` | Success; Node `22.23.4`, npm `11.21.1`, 61 passed |
+| `FWCloud-Updater Test (Node 24)` | Success; Node `24.22.1`, npm `11.21.1`, 61 passed |
+| `updater-ci` | Success; GitHub Actions app `15368`, intended workflow/run/job verified |
+| Required check configured in branch protection | Not verified; API reports both target branches unprotected, protection read returns 403 |
+| Acceptance reviewer and date | Responsible reviewer: Codex (automated), 2026-11-04; no maintainer sign-off claimed |
 
-- [ ] Confirm a valid PR to `ENS` runs quality, all three test jobs and
+- [x] Confirm a valid PR to `ENS` runs quality, all three test jobs and
   `updater-ci`, with all jobs successful.
-- [ ] Confirm the logged checkout SHA matches the intended source commit and
+- [x] Confirm the logged checkout SHA matches the intended source commit and
   every dependency-consuming job reports npm `11.21.1`.
 - [ ] Push another revision to the same PR while its previous run is executing;
   record the cancelled run and its replacement.
@@ -336,8 +351,10 @@ so they still run after test or validation failures. The test step has no
 `updater-ci`. Setup/build failures do not claim to have executed tests, and
 cancelled jobs are not guaranteed to publish artifacts.
 
-Uploads use `actions/upload-artifact@v4`, `if-no-files-found: error` and 14-day
-retention. Test names include the run attempt to preserve each attempt's evidence.
+Uploads use `actions/upload-artifact@v4`, `if-no-files-found: error` and request
+90-day retention. The reviewed `ENS` revision still requested 14 days for these
+artifacts; the 90-day change is local and requires a new hosted run and expiry
+check (section 10.5). Test names include the run attempt to preserve each attempt's evidence.
 Coverage uses `overwrite: true` with a stable run ID so a partial rerun replaces
 the earlier coverage artifact; `analysis.json` identifies the producing attempt.
 Even failed reference executions attempt the coverage upload, preserving any
@@ -414,20 +431,21 @@ run `TEST_OUTCOME=success COVERAGE_EXPECTED=true npm run ci:reports` and inspect
 `reports/coverage/analysis.json`. The workflow supplies the actual test outcome
 even when tests fail.
 
-### 5.5. Hosted acceptance pending
+### 5.5. Hosted acceptance
 
-- [ ] Record a complete Actions run against the final implementation commit,
+- [x] Record a complete Actions run against the deployed implementation commit,
   with all three matrix cells and `quality` successful.
-- [ ] Download each `updater-tests-node<N>-<RUN_ID>-<ATTEMPT>` artifact and verify
+- [x] Download each `updater-tests-node<N>-<RUN_ID>-<ATTEMPT>` artifact and verify
   its XML, JSON, metadata, checkout SHA and runtime.
-- [ ] Download `updater-coverage-node22-<RUN_ID>` and verify the HTML assets,
+- [x] Download `updater-coverage-node22-<RUN_ID>` and verify the HTML assets,
   metrics, producing attempt and independently computed LCOV checksum.
 - [ ] Confirm test and validation failures retain artifacts and fail `updater-ci`.
 - [ ] Partially rerun Node 22 and verify coverage replacement and the updated
   attempt, while earlier attempt-specific test artifacts remain available.
 - [ ] Inspect successful and failed summaries for aggregate statistics only.
 
-These hosted checks remain pending until the workflow is published and executed.
+The successful execution and artifact review are recorded in section 10. Failure,
+partial-rerun, summary and new-retention acceptance remain open.
 
 ## 6. Phase 3 — Hermetic tests, authorization coverage and integration
 
@@ -594,9 +612,10 @@ coverage only between executions with the same `logs/` and `.env` conditions.
   `LogsService`, which creates `logs/` and opens Winston file transports in the
   working directory. The new suites avoid this, but that spec still depends on a
   writable working directory.
-- Hosted acceptance: record a complete Actions run against the final commit with
-  61 tests per matrix cell, and confirm that the Node 22 artifact contains the
-  integration suite's coverage.
+- Hosted successful-path evidence: run `41826696674`, reviewed in section 10,
+  executes six suites and 61 tests in every matrix cell. Its Node 22 report
+  includes the integration suite and matches the Phase 3 reference coverage.
+  Final acceptance and protected rollout remain open.
 
 ## 7. Phase 4 — Secret detection with Gitleaks
 
@@ -863,6 +882,10 @@ cleanup, no `gitleaks.*` file remained in the runner temporary directory, and
 
 ### 7.8. Hosted acceptance pending
 
+The successful `ENS` push, sanitized archive and effective security-artifact
+expiry were reviewed on 2026-11-04 (section 10). The PR job also passed in run
+`41819337417`. These observations do not close the failure/full-history items.
+
 - [ ] Run the workflow on a PR to `ENS`. Confirm `FWCloud-Updater Secrets` and
   `updater-ci` succeed, the summary shows `pull-request:<merge-base>..<head>`
   and the scan step prints nothing.
@@ -871,7 +894,7 @@ cleanup, no `gitleaks.*` file remained in the runner temporary directory, and
 - [ ] Download `updater-secrets-<RUN_ID>-<ATTEMPT>` from a clean and a failing run.
   Confirm it contains only `metadata.json` and has 90-day retention, and that
   logs, summaries and artifacts show no values, paths or lines.
-- [ ] Verify a push to `ENS` scans `<before>..<sha>`.
+- [x] Verify a push to `ENS` scans `<before>..<sha>`.
 - [ ] Run `workflow_dispatch` once the workflow is on the default branch
   (`origin/main` has no `workflow_dispatch` trigger today). Record the run, the
   analyzed commit, the commit and finding counts and, for any finding, its
@@ -1161,12 +1184,12 @@ tests and workflow verification passed when rerun outside that restriction.
 These are local checks of the commands and failure behavior, not a claim that
 the GitHub artifact service or branch protection has been exercised.
 
-Hosted acceptance remains pending:
+Successful hosted scan/SBOM evidence is recorded in section 10: run
+`41826696674` passed and all eight archive files were reviewed. Remaining
+hosted acceptance:
 
-- Run the final implementation commit in Actions and record the run URL, tested
-  SHA, SCA result and aggregate result.
-- Review all eight security artifact files and the aggregate-only summary;
-  confirm the run/attempt artifact name and 90-day retention request.
+- Inspect the rendered Actions summary and confirm repository/organization
+  retention settings; the reviewed artifact expiry is approximately 90 days.
 - Confirm artifact upload after a controlled HIGH finding and after scanner/SBOM
   errors. Record the native failure and retained diagnostics.
 - Confirm branch protection requires `updater-ci`, and an unsuccessful or skipped
@@ -1266,15 +1289,18 @@ The sandbox initially denied HTTP test listeners and Git/npm subprocess calls
 with `EPERM`; coverage, report collection and tooling tests passed when repeated
 outside that restriction. No application or dependency changes were required.
 
-Administrative and hosted acceptance remain pending:
+The successful `ENS` execution, coverage import, source indexing, passing gate
+and sanitized artifact have now been reviewed (section 10). Administrative and
+negative-case acceptance remain pending:
 
 - Verify the actual project key, repository binding and GitHub App access.
 - Disable Automatic Analysis; confirm analysis permission for `SONAR_TOKEN` and
   repository access to the secret without exposing its value.
 - Record the assigned Quality Gate, new-code definition and plan entitlement for
   `ENS` and internal PRs.
-- Run the final implementation commit in Actions, recording the run URL, SHA,
-  Sonar analysis URL, imported coverage, source/test indexing and gate result.
+- Confirm the assigned Quality Gate identity and administrative new-code
+  settings. Section 10 records the immutable analysis ID, evaluated conditions,
+  scanner log and Sonar decoration for the reviewed successful execution.
 - Exercise a passing/failing internal PR, failed gate, missing/invalid token and
   scanner error; confirm both `sonar` and `updater-ci` fail as required.
 - Confirm fork/Dependabot skips with all other checks enforced and analysis of
@@ -1283,3 +1309,321 @@ Administrative and hosted acceptance remain pending:
   artifact contents, failure evidence and effective retention.
 - Verify branch rules require `updater-ci` and enforce the result. Do not mark
   the integration complete until project, permissions and gate are verified.
+
+## 10. Hosted evidence, protection and rollout
+
+### 10.1. Implementation register
+
+Verification date for **every row below**: **2026-11-04**. Reviewer for every row:
+**Codex, automated repository/API/artifact/log review**. Maintainer ownership was
+not supplied and remains pending designation; no maintainer approval is claimed.
+All listed PRs were merged into `ENS`. Their PR executions and matching
+post-merge executions report success; the PR job lists were also inspected.
+This establishes deployment on `ENS`, rather than completion of acceptance.
+
+The full commit in each row identifies the implemented PR head. The linked merge
+commit identifies its deployment on `ENS`. Run links select attempt 1.
+
+| Phase | PR | Implemented commit SHA | ENS merge | PR run / ENS push run | Validation and outstanding work |
+| --- | --- | --- | --- | --- | --- |
+| 1 — Foundation | [#104](https://github.com/soltecsis/fwcloud-updater/pull/104) | `f630222f19316587ac30a89b84fe9a12518a8114` | [`45f33a0`](https://github.com/soltecsis/fwcloud-updater/commit/45f33a0c9d31d4b52ee12fcd5d3608b9b6f1b45f) | [41804081675](https://github.com/soltecsis/fwcloud-updater/actions/runs/41804081675/attempts/1) / [41804207548](https://github.com/soltecsis/fwcloud-updater/actions/runs/41804207548/attempts/1) | Quality, matrix and aggregate passed; protection, event/cancellation acceptance open. |
+| 1b — Quality scope | [#105](https://github.com/soltecsis/fwcloud-updater/pull/105) | `003b3f0a6ab2fd1fdc84c95d41cff84e24e61320` | [`8f8658b`](https://github.com/soltecsis/fwcloud-updater/commit/8f8658b683bd715b2be11d18b8c3d7e88635e286) | [41805470259](https://github.com/soltecsis/fwcloud-updater/actions/runs/41805470259/attempts/1) / [41805612083](https://github.com/soltecsis/fwcloud-updater/actions/runs/41805612083/attempts/1) | Extended lint/format passed; final protected rollout open. |
+| 2 — Reports and reference | [#106](https://github.com/soltecsis/fwcloud-updater/pull/106) | `b902b68b19209c1ac0d516d77763b838d04c1850` | [`d3e1c5e`](https://github.com/soltecsis/fwcloud-updater/commit/d3e1c5e7e2fcc26152f75c024ccbc0c7c140354b) | [41808866398](https://github.com/soltecsis/fwcloud-updater/actions/runs/41808866398/attempts/1) / [41809108076](https://github.com/soltecsis/fwcloud-updater/actions/runs/41809108076/attempts/1) | Current reports/coverage reviewed; failed uploads, partial rerun, summaries and new retention open. |
+| 3 — Hermetic/auth/HTTP tests | [#107](https://github.com/soltecsis/fwcloud-updater/pull/107) | `7884c17df43ca74a5abb35ad45097a5ae084abc2` | [`afc1cd7`](https://github.com/soltecsis/fwcloud-updater/commit/afc1cd7ef73a6962d23a2ad32bc958f99bb6f9ba) | [41813191217](https://github.com/soltecsis/fwcloud-updater/actions/runs/41813191217/attempts/1) / [41813419845](https://github.com/soltecsis/fwcloud-updater/actions/runs/41813419845/attempts/1) | 61 tests per Node cell; current coverage equals Phase 3 reference; final protected rollout open. |
+| 4 — Gitleaks | [#108](https://github.com/soltecsis/fwcloud-updater/pull/108) | `2a4a696f2611f04103da0097989bf261e23d8ae4` | [`d40ab2d`](https://github.com/soltecsis/fwcloud-updater/commit/d40ab2dba410784fc4a9f39b149ad69904a23be5) | [41819337417](https://github.com/soltecsis/fwcloud-updater/actions/runs/41819337417/attempts/1) / [41819438914](https://github.com/soltecsis/fwcloud-updater/actions/runs/41819438914/attempts/1) | Push range and sanitized clean artifact reviewed; hosted findings/errors and full-history dispatch open. |
+| 5 — Trivy/SBOM | [#109](https://github.com/soltecsis/fwcloud-updater/pull/109) | `73a221b613203b1961546431653460ac7d195213` | [`e6fb972`](https://github.com/soltecsis/fwcloud-updater/commit/e6fb9729adffbf0d669440ed46b7aa8aa116f4fe) | [41823964028](https://github.com/soltecsis/fwcloud-updater/actions/runs/41823964028/attempts/1) / [41824128025](https://github.com/soltecsis/fwcloud-updater/actions/runs/41824128025/attempts/1) | 657 npm packages, zero findings, matching SBOM reviewed; hosted finding/scanner/SBOM failure cases open. |
+| 6 — SonarQube | [#110](https://github.com/soltecsis/fwcloud-updater/pull/110) | `9be0677704205039ac8e69b456ad82b185d6ed03` | [`04e39b3`](https://github.com/soltecsis/fwcloud-updater/commit/04e39b3adf742f259611d017891e3f28903d2899) | [41826344334](https://github.com/soltecsis/fwcloud-updater/actions/runs/41826344334/attempts/1) / [41826696674](https://github.com/soltecsis/fwcloud-updater/actions/runs/41826696674/attempts/1) | Coverage import, immutable analysis reference and passing gate verified; administrative configuration and negative cases open. |
+| 7 — Protection, evidence and rollout | Pending publication | `ba316f2357804414cfa9c2346e4434bc870c9453` (retention); evidence documentation in this commit | Not deployed | No run for these final changes | README/evidence register and test/coverage retention requests changed locally; protection, hosted negative cases and rollout remain open. |
+
+Artifact relevance: phases 1 and 1b use the quality/matrix logs and aggregate
+check; phases 2 and 3 use all test artifacts and Node 22 coverage; phase 4 uses
+the secrets artifact; phase 5 uses SCA/SBOM; phase 6 uses Sonar metadata together
+with Node 22 coverage and scanner logs. The detailed review below samples the
+latest integrated revision, including all those implementations, rather than
+claiming that earlier PR artifacts were downloaded.
+
+### 10.2. Reviewed artifacts
+
+Representative execution:
+[41826696674, attempt 1](https://github.com/soltecsis/fwcloud-updater/actions/runs/41826696674/attempts/1),
+`push` to `ENS`, created `2026-11-04T12:08:27Z`, completed successfully at
+`2026-11-04T12:10:09Z`. Expected repository:
+`soltecsis/fwcloud-updater` (repository ID `314585608`); expected commit:
+`04e39b3adf742f259611d017891e3f28903d2899`.
+
+All seven archives were downloaded, their SHA-256 values independently matched
+GitHub's artifact digests, and their contents were extracted and inspected.
+GitHub artifact provenance and embedded metadata agree on repository, SHA,
+event, ref, run and attempt. No expired archive was used. Recorded expiry is the
+effective value returned by GitHub, not a value inferred from YAML.
+
+| Artifact | Artifact ID | Archive SHA-256 | GitHub expiry (UTC) |
+| --- | --- | --- | --- |
+| [`updater-coverage-node22-41826696674`](https://github.com/soltecsis/fwcloud-updater/actions/runs/41826696674/artifacts/13319128301) | `13319128301` | `83502091dcc97a2f40ae919dd2b720c61bd0a91414cc82112f76da5bc3c9f18b` | `2026-11-18T12:08:54Z` |
+| [`updater-sca-sbom-41826696674-1`](https://github.com/soltecsis/fwcloud-updater/actions/runs/41826696674/artifacts/13319885980) | `13319885980` | `438db6a2bc5535a0691dd139daea03676f59a1950aab7521506da3294433ed04` | `2027-02-02T12:08:28Z` |
+| [`updater-secrets-41826696674-1`](https://github.com/soltecsis/fwcloud-updater/actions/runs/41826696674/artifacts/13319093233) | `13319093233` | `a8e700101eb4b2504daa69722464339c3e22d714df7c8337417ed9e12ab5417b` | `2027-02-02T12:08:28Z` |
+| [`updater-sonarqube-41826696674-1`](https://github.com/soltecsis/fwcloud-updater/actions/runs/41826696674/artifacts/13319258406) | `13319258406` | `ade85a403e290d59e35dc9889f84551f5430b5dd317b115a5b9b6e2528a4c2ce` | `2027-02-02T12:08:28Z` |
+| [`updater-tests-node20-41826696674-1`](https://github.com/soltecsis/fwcloud-updater/actions/runs/41826696674/artifacts/13318134707) | `13318134707` | `30784b20ac524f6c0c273a29c9dafea907a7d462cf846a778f65ac146ddfeb64` | `2026-11-18T12:09:03Z` |
+| [`updater-tests-node22-41826696674-1`](https://github.com/soltecsis/fwcloud-updater/actions/runs/41826696674/artifacts/13318854059) | `13318854059` | `09dd72a6e008ad9a8afd5a75bb7bc965399ba63697de630ed80755bad57383ed` | `2026-11-18T12:08:53Z` |
+| [`updater-tests-node24-41826696674-1`](https://github.com/soltecsis/fwcloud-updater/actions/runs/41826696674/artifacts/13319936022) | `13319936022` | `612e4b738ebd68c269d6fe0fc924a8ca9c0516725d037adc4901eb819212900a` | `2026-11-18T12:08:57Z` |
+
+| Control | Content and validation result |
+| --- | --- |
+| Jest, Node 20/22/24 | Each archive contains `tests/junit.xml`, `tests/results.json` and `metadata.json`. XML, JSON and metadata agree: six suites, 61 passed, zero failed/skipped/todo per cell. Effective Node versions are `20.20.2`, `22.23.4`, `24.22.1`; npm is `11.21.1`. |
+| Node 22 coverage | `analysis.json`, `lcov.info`, `coverage-summary.json`, readable HTML and referenced assets present. Twelve original source records under `src/` and `config/`; no specification/declaration/generated sources. Producer metadata equals the Node 22 test metadata. |
+| Gitleaks | Archive contains only `metadata.json`, with version `8.30.1`, status `success`, zero findings/errors/log lines and no finding-level content. Scope is `push:e6fb9729adffbf0d669440ed46b7aa8aa116f4fe..04e39b3adf742f259611d017891e3f28903d2899`; the job log corroborates successful execution and cleanup. |
+| Trivy/SBOM | All eight documented files parse/read correctly. Trivy `0.74.0`, database schema 2 updated `2026-11-04T07:16:25.226375897Z`; native scan/SBOM/policy exit codes 0. CycloneDX `1.7` has 658 components, including 657 npm packages; package identities match Trivy and the committed lockfile. 162 runtime/495 development packages, 30 direct/627 indirect; dependency references resolve. Zero reported vulnerabilities at every severity; no exceptions. |
+| SonarQube | Archive contains only `metadata.json`. Coverage download/validation/scan succeeded, project `soltecsis_fwcloud-updater`, branch `ENS`, scanner `8.1.0.6389`. Configuration checksums match committed files. Producer and consumer are both attempt 1; imported LCOV checksum matches the producer bytes. Scanner log and Sonar check decoration independently confirm the passing gate. |
+
+Committed lockfile SHA-256, matched against the SCA metadata:
+`00267dd982bf452bed6005e4c99988f20a2bfa69330dfdf4eaca50760d892013`.
+
+Node 22 LCOV SHA-256, independently calculated and identical in coverage and
+Sonar metadata:
+`d0844ee9dc63a91229ddf292a7aa2a88463aef175db0aed19a838af63dc1feae`.
+
+| Metric | Reviewed ENS execution | Reference comparison |
+| --- | --- | --- |
+| Lines | 153/194, 78.86% | Exact Phase 3 reference |
+| Statements | 175/217, 80.64% | Exact Phase 3 reference |
+| Functions | 23/33, 69.69% | Exact Phase 3 reference |
+| Branches | 71/80, 88.75% | Exact Phase 3 reference |
+
+The initial Phase 2 line baseline remains 82/194 (42.26%); its separate local
+measurement and checksum are preserved in section 5.4. The hosted result
+matches the later Phase 3 reference byte for byte. Compare environments as
+described in section 6.6; do not replace a historical baseline with a new result.
+
+### 10.3. Job logs, Sonar and exposure review
+
+All eight job logs from the representative execution were downloaded and reviewed:
+quality, three test cells, secrets, SCA/SBOM, Sonar and `updater-ci`. All jobs and
+their applicable upload steps succeeded. The quality job ran extended ESLint,
+Prettier and the CI tooling suite (251 passed, zero failed, one native Trivy
+test skipped there; native Trivy policy runs separately in SCA).
+
+Seventy-six artifact text files, all job logs and nine check outputs were
+reviewed using credential-signature checks and contextual review of authentication,
+token, authorization, cookie/session, password and URL parameters. No unmasked
+credentials or session values were observed. GitHub checkout credentials and
+`SONAR_TOKEN` appear as masked placeholders. Other matches were public provenance,
+test names, source identifiers or scanner/package labels. No raw Gitleaks report,
+scanner work directory or credential configuration was published in the sampled
+archives. Coverage HTML intentionally contains application source.
+
+The Sonar scanner log records signature verification, revision `04e39b3...`,
+LCOV import from `reports/coverage/lcov.info`, 18 indexed files and analysis of
+all 17 TypeScript files using `tsconfig.sonar.json` (analyzer TypeScript
+`6.0.3`). No unresolved LCOV-path warning was observed. The log reports
+`QUALITY GATE STATUS: PASSED`. The
+[Sonar check on this commit](https://github.com/soltecsis/fwcloud-updater/commit/04e39b3adf742f259611d017891e3f28903d2899/checks)
+also says “Quality Gate passed”, with 96.3% **new-code** coverage; this is a
+different metric from Jest's overall line coverage. The
+[ENS Sonar dashboard](https://sonarcloud.io/dashboard?id=soltecsis_fwcloud-updater&branch=ENS)
+is a mutable branch link. The downloaded metadata/logs omit an immutable server
+analysis/task ID; a separate public API review on 2026-11-04 at 12:20 UTC obtained:
+
+| Server evidence | Observed result |
+| --- | --- |
+| [Branch metadata](https://sonarcloud.io/api/project_branches/list?project=soltecsis_fwcloud-updater) | `ENS` commit is exactly `04e39b3adf742f259611d017891e3f28903d2899`, analysis date `2026-11-04T12:09:29Z`; type `SHORT`, merge branch `main` |
+| [Current branch task](https://sonarcloud.io/api/ce/component?component=soltecsis_fwcloud-updater&branch=ENS) | Task `AaGmdz8Azjhvrde8Urhk`, `SUCCESS`, executed `2026-11-04T12:09:56Z`, zero warnings; analysis ID `ce000d45-c2f9-46f5-98b2-3a513b54f002` |
+| [Gate for that immutable analysis ID](https://sonarcloud.io/api/qualitygates/project_status?analysisId=ce000d45-c2f9-46f5-98b2-3a513b54f002) | `OK`, all six conditions `OK`, `ignoredConditions: false` |
+
+The observed gate conditions for this analysis are:
+
+| New-code metric | Passing boundary | Actual |
+| --- | --- | --- |
+| Reliability, security and maintainability ratings (three conditions) | Each at most 1 | Each 1 |
+| Coverage | At least 80% | 96.3% |
+| Duplicated-line density | At most 3% | 0.0% |
+| Security hotspots reviewed | 100% | 100.0% |
+
+These public responses corroborate the reviewed candidate through the matching
+branch SHA and execution times within the Actions run. They do not directly
+identify GitHub run `41826696674`; that association is a correlation with the
+reviewed workflow metadata/logs. The assigned-gate lookup returned 403 to the
+anonymous API caller; the exact administrative gate identity and new-code
+definition remain unverified. Branch type/merge target and evaluated thresholds
+do not by themselves verify those administrative settings, repository binding,
+Automatic Analysis, token ownership/permissions or negative cases.
+
+Rendered `GITHUB_STEP_SUMMARY` pages could not be inspected through the
+available connection: the eight Actions check outputs return null
+`title/summary/text`, and the public page fetch did not return the run page.
+Actual report text printed in logs and the Sonar decoration were reviewed.
+Null check output does not prove that no rendered summary exists. A maintainer
+must inspect the rendered successful and failing summaries and record the result.
+
+Nonblocking hosted warnings: Actions targeting its deprecated Node 20 runtime
+were forced to Node 24 (separate from the project's test matrix), npm reported
+the existing `@parcel/watcher` `allowScripts` warning, and GPG noted missing
+web-of-trust certification despite a good scanner signature. All checks passed.
+This review covers the sampled successful execution; it neither establishes
+absence of every possible secret encoding nor substitutes for failure-path review.
+
+### 10.4. Effective protection and merge acceptance
+
+Read-only GitHub checks on 2026-11-04 returned:
+
+| Check | Observed result |
+| --- | --- |
+| Branch collection | `ENS`, `main` and `devel` each report `protected: false` |
+| Repository/inherited rulesets | `GET /repos/soltecsis/fwcloud-updater/rulesets?includes_parents=true` returns `[]` |
+| Detailed protection for `ENS` and `main` | Both reads return HTTP 403, `Resource not accessible by integration` |
+| Connected app permissions | `admin: false`, `maintain: false`, `push: true`; no administration mutation tool |
+| Local authentication fallback | Git credential helper supplies no usable authentication; no credentials printed |
+| Required check producer | Check `126563888969`, name `updater-ci`, GitHub Actions app `15368` / `github-actions`, success; details point to workflow run `41826696674`, job `126563888969` |
+| Intended workflow | Run records name `FWCloud-Updater CI`, path `.github/workflows/nodejs.yml`, workflow ID `4095626`; the job definition and dependencies agree |
+
+The observable branch/ruleset configuration does not establish any protection
+on either target. Protection was **not configured** by this review. Required
+checks, strictness, obsolete checks and administrative exceptions cannot be
+certified from an inaccessible protection endpoint. A green aggregate only
+establishes successful execution.
+
+An administrator must configure both exact branches, preserving any additional
+repository requirements, then export and reread the effective settings. For new
+classic branch-protection rules, the requested settings are:
+
+```json
+{
+  "required_status_checks": {
+    "strict": true,
+    "contexts": [],
+    "checks": [
+      { "context": "updater-ci", "app_id": 15368 }
+    ]
+  },
+  "enforce_admins": true,
+  "required_pull_request_reviews": {
+    "required_approving_review_count": 0
+  },
+  "restrictions": null,
+  "allow_force_pushes": false,
+  "allow_deletions": false
+}
+```
+
+Apply through the GitHub settings UI or authenticated
+`PUT /repos/soltecsis/fwcloud-updater/branches/{ENS|main}/protection`.
+The zero review count requires the PR workflow without introducing a new approval
+count policy. Require only `updater-ci` **for this CI workflow**, removing obsolete
+`FWCloud-Updater Test (18|20|22)` requirements and any superseded individual
+matrix names. Preserve unrelated required checks. Do not overwrite stronger
+existing review/restriction settings with this new-rule example.
+
+A ruleset alternative must be active for `refs/heads/ENS` and
+`refs/heads/main`, require PRs and strict `updater-ci` from integration
+`15368`, and have no administrator/team/app bypass that defeats these rules.
+No bypass is intended by this configuration. If an exception is retained,
+record its exact actors, purpose, authorization and scope before acceptance.
+The app binding verifies the expected status producer; it does not independently
+pin a workflow file. Recheck the named status's workflow/run association.
+
+Verify through effective settings and protected PRs, using the normal merge path
+without an administrative bypass:
+
+| Scenario | Required observation | Recorded result |
+| --- | --- | --- |
+| Missing `updater-ci` | Merge unavailable while the required context is absent | Pending; no protected fixture PR |
+| Pending `updater-ci` | Merge unavailable before completion | Pending |
+| Failed `updater-ci` | Merge rejected; preserve native failure and upload evidence | Pending |
+| Branch behind target | Merge unavailable until updated and required checks rerun | Pending |
+| Current branch, all controls successful | Normal protected merge succeeds; record PR and resulting SHA | Pending; previous unprotected merges do not establish this |
+
+Local aggregate tests cover failure/skipped/cancelled results, including the
+documented Sonar exclusions. They cannot establish these server-side outcomes.
+For each hosted failure test, retain the PR, head SHA, run/attempt, failing job,
+artifact IDs and observed merge state. Use test fixtures without real credentials.
+
+### 10.5. Effective retention and failure evidence
+
+At the reviewed revision, the three test archives and coverage request **14
+days** in both the workflow and upload logs; GitHub expiry is
+`2026-11-18`, approximately 14 days after creation. This is an implementation
+gap, not an established platform limitation. The local workflow now requests
+**90 days** for both uploads; that change is not deployed or remotely verified.
+
+Gitleaks, SCA/SBOM and Sonar request **90 days**; GitHub records
+`2027-02-02T12:08:28Z` as their expiry, approximately 90 days after the run
+started. This corroborates effective 90-day retention for those sampled archives.
+It does not establish a global repository/organization retention setting.
+
+The administrative retention-setting read
+`GET /repos/soltecsis/fwcloud-updater/actions/permissions/artifact-and-log-retention`
+is unsupported by the connected fetch tool, and no alternate authenticated
+administrator connection was available. Repository/organization limits remain
+unverified. Inspect those settings and newly uploaded test/coverage expiry after
+deployment; record any actual cap with its source and approved disposition.
+Existing 14-day archives are not extended by changing the workflow.
+
+Failure uploads are structurally enabled after attempted tests/Gitleaks scans,
+always for SCA evidence, and after successful Sonar checkout, preserving native
+job failure. Existing local fixtures verify collector/aggregate behavior.
+No failed hosted execution from the modernized workflow was reviewed; successful
+upload steps and simulated failures in CI tooling tests do not prove publication
+after an actual failing check. Still required:
+
+- Tests and validation failure: JUnit/JSON/metadata plus available coverage
+  survive; invalid coverage must not become valid `analysis.json`.
+- Gitleaks findings/scanner errors: sanitized metadata survives, detailed findings
+  are removed and `secrets`/`updater-ci` remain unsuccessful.
+- Trivy HIGH/CRITICAL findings and scanner/SBOM errors: available diagnostic
+  evidence survives and `sca`/`updater-ci` remain unsuccessful.
+- Sonar failed gate, token/preparation/download errors and scanner errors:
+  available aggregate metadata survives and eligible `sonar`/`updater-ci`
+  remain unsuccessful.
+- Earlier-attempt coverage reuse and a Node 22 producer rerun: validate current
+  consumer/producer attempts, overwrite behavior and LCOV checksum.
+- Inspect retained failure logs, rendered summaries and artifacts for sensitive
+  context as well as correctness.
+
+Checkout, setup and installation failures can prevent some control artifacts from
+existing; cancelled runs are not guaranteed to upload. Record that condition
+explicitly rather than presenting unavailable evidence as a passed control.
+
+### 10.6. Rollout state and closure register
+
+Promotion remains blocked because protection and the remaining acceptance
+checks must pass first. No remote branch was changed
+during this review.
+
+| Branch | GitHub head observed on 2026-11-04 | Modernized execution / rollout state |
+| --- | --- | --- |
+| `ENS` | `04e39b3adf742f259611d017891e3f28903d2899` | All current jobs successful in reviewed run `41826696674`; final local retention/docs changes not deployed |
+| `main` | `47d29843e9633481377613520711f516b3b5f3ce` | Modernization not promoted; no final modernized CI execution |
+| `devel` | `8b0a5802b8d304df551db17919911dcefe152488` | Not yet aligned with `ENS` |
+
+| Rollout step | Status and required evidence |
+| --- | --- |
+| Validate CI on `ENS` | Successful current implementation reviewed; publish final changes, record their PR/SHA and rerun |
+| Review evidence and effective protection | Artifacts/logs reviewed; rendered summaries, failure cases, retention limits and protection pending |
+| Confirm `updater-ci` enforcement | Pending administrative settings and negative/positive protected-PR outcomes |
+| Record accepted revision before promotion | **No accepted rollout SHA yet**; `04e39b3...` is the reviewed candidate, not final acceptance |
+| Promote `ENS` to `main` | Pending all prior acceptance; use a protected PR and record accepted source SHA, PR and resulting full SHA |
+| Verify resulting `main` execution | Pending promotion; review complete required jobs and evidence on the resulting commit |
+| Align `devel` | Pending successful `main` validation; record integration PR, resulting full SHA and complete CI run |
+| Close documentation | Pending final branch heads, run/artifact links, settings snapshot, verification date, responsible reviewer and outstanding-issue disposition |
+
+The retention fix is committed as `ba316f2357804414cfa9c2346e4434bc870c9453`.
+This documentation commit records the evidence and README guidance. Its PR,
+`ENS` run, effective expiry and any later rollout references must be added after
+those events occur. Do not use placeholder links,
+earlier successful runs or merged-code status as substitutes.
+
+Local validation of these final changes on 2026-11-04 (Codex automated review):
+
+| Check | Result |
+| --- | --- |
+| `node --test scripts/sonar-workflow.test.cjs` | Passed |
+| Actionlint `1.7.7`, `-shellcheck=` | Passed; ShellCheck unavailable and disabled |
+| YAML inspection of artifact upload definitions | All five upload definitions request 90 days |
+| README/CI documentation local links and JSON example parsing | Passed |
+| `git diff --check` | Passed |
+
+These checks do not replace a hosted run of the final implementation commit.
+
+Administrative API references:
+[branch protection](https://docs.github.com/en/rest/branches/branch-protection),
+[repository rulesets](https://docs.github.com/en/rest/repos/rules),
+[artifact and log retention](https://docs.github.com/en/rest/actions/permissions#get-artifact-and-log-retention-settings-for-a-repository).
