@@ -34,6 +34,11 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
+    "pretest:ci": "node scripts/prepare-ci-reports.cjs",
+    "test:ci": "jest --ci --reporters=default --reporters=jest-junit --json --outputFile=reports/tests/results.json",
+    "test:coverage:ci": "npm run test:ci -- --coverage --coverageReporters=lcov --coverageReporters=json-summary --coverageReporters=html --coverageReporters=text-summary",
+    "ci:reports": "node scripts/ci-reports.cjs",
+    "test:ci-tools": "node --test scripts/*.test.cjs",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "update": "npm run stop && git checkout -- package-lock.json && git pull && npm install && git checkout -- package-lock.json && npm run build",
@@ -67,7 +72,9 @@
     "eslint-plugin-prettier": "5.5.5",
     "globals": "17.4.0",
     "jest": "30.5.2",
+    "jest-junit": "17.0.0",
     "prettier": "3.8.2",
+    "saxes": "6.0.0",
     "ts-jest": "29.4.9",
     "typescript": "6.0.2"
   },
@@ -93,15 +100,27 @@
       "json",
       "ts"
     ],
-    "rootDir": "src",
+    "rootDir": ".",
+    "roots": [
+      "<rootDir>/src",
+      "<rootDir>/config"
+    ],
     "testRegex": ".*\\.spec\\.ts$",
     "transform": {
       "^.+\\.(t|j)s$": "ts-jest"
     },
     "collectCoverageFrom": [
-      "**/*.(t|j)s"
+      "src/**/*.{ts,js}",
+      "config/**/*.ts",
+      "!**/*.d.ts",
+      "!**/*.{spec,test}.{ts,js}"
     ],
-    "coverageDirectory": "../coverage",
+    "coverageDirectory": "reports/coverage",
     "testEnvironment": "node"
+  },
+  "jest-junit": {
+    "outputDirectory": "reports/tests",
+    "outputName": "junit.xml",
+    "reportTestSuiteErrors": "true"
   }
 }
