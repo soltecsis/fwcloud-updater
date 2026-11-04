@@ -19,8 +19,9 @@ stable required status check. It follows the Phase 1 structure of FWCloud API's
 `.github/CI-BACKEND.md` and `.github/workflows/nodejs.yml`, with the npm pinning
 approach established in FWCloud UI.
 
-Deployment, security scanning, coverage reporting and SonarQube integration are
-outside this phase.
+Deployment, security scanning, coverage reporting and SonarQube integration were
+outside Phase 1. Phase 2 adds test reports and a reference coverage measurement,
+as described in section 5.
 
 ## 2. Current technical decisions
 
@@ -59,9 +60,9 @@ lockfile change is the root package's Node engine metadata.
 | Phase | Delivery | Status | Closure criterion |
 | --- | --- | --- | --- |
 | 1 | Reproducible installation, separate quality/test jobs, execution controls and `updater-ci` | Implemented and verified locally; GitHub acceptance pending | Local checks pass, a PR to `ENS` passes every required job, event/cancellation behavior is verified and branch protection requires `updater-ci` |
+| 2 | Validated Jest/JUnit reports, execution metadata and a Node 22 coverage reference | Implemented; local verification recorded in section 5; GitHub acceptance pending | Every matrix cell uploads test evidence, Node 22 uploads validated coverage, failures preserve artifacts and the summary contains aggregates only |
 
-Future CI extensions require separate scope and acceptance criteria. No later
-phase is implemented by this change.
+Further CI extensions require separate scope and acceptance criteria.
 
 ## 4. Phase 1 — Reproducible CI foundation
 
@@ -224,3 +225,198 @@ results for an earlier revision do not automatically validate later changes.
 - [ ] Record the run links, final commit, branch protection evidence and reviewer.
 
 The phase remains open for hosted acceptance until these items are verified.
+
+## 5. Phase 2 — Test evidence and reference coverage
+
+### 5.1. Commands and report scope
+
+| Command | Purpose |
+| --- | --- |
+| `npm run test:ci` | Run Jest in CI mode with the default console reporter, `jest-junit` and native Jest JSON |
+| `npm run test:coverage:ci` | Run that same suite once, adding LCOV, JSON summary, HTML and text-summary coverage reporters |
+| `TEST_OUTCOME=success COVERAGE_EXPECTED=false npm run ci:reports` | Validate reports, write execution metadata and publish aggregate statistics |
+| `npm run test:ci-tools` | Run automated validator and focused-test detection checks with Node's test runner |
+
+`jest-junit` is pinned to `17.0.0`. The `pretest:ci` hook creates
+`reports/tests/` and `reports/coverage/`, clearing earlier test/coverage evidence
+and metadata first. This prevents an unsuccessful Jest startup from reusing a
+previous successful run. `test:coverage:ci` delegates to `test:ci`, so it executes
+the application suite only once. Neither command uses `--passWithNoTests`.
+
+Jest's `rootDir` is now the repository root, with `roots` set to `src` and
+`config`. The existing `.*\.spec\.ts$` discovery expression is unchanged.
+Coverage includes `src/**/*.{ts,js}` and `config/**/*.ts`, excluding declarations
+(`**/*.d.ts`) and specifications (`**/*.{spec,test}.{ts,js}`). The two config
+factories contain executable application defaults and environment-variable
+handling, so they belong in the coverage denominator. They add no test suites;
+local discovery still finds exactly the same three specifications under `src`.
+
+The `jest/no-focused-tests` ESLint rule from pinned `eslint-plugin-jest@29.17.0`
+rejects `.only`, `fit`, `fdescribe` and parameterized focus. An additional syntax
+selector covers `test.concurrent.only` / `it.concurrent.only`, including bracket
+notation, which that plugin version does not recognize without `.each`.
+`lint:check` runs this check in `quality`; `test:ci-tools` exercises the actual
+configuration with focused and ordinary examples. Existing skipped tests remain
+visible in the statistics.
+
+### 5.2. Validation, metadata and privacy
+
+`ci-context.cjs` reuses FWCloud API's helper from `ENS` revision `d4627b2` (with
+local formatting). `ci-reports.cjs` adapts the Jest implementation from FWCloud
+Websrv's `ENS` revision `fc87070`, retaining Updater's explicit source checkout
+and removing database metadata. `saxes@6.0.0` provides strict XML parsing instead
+of checking for a closing XML tag.
+
+The validator rejects:
+
+- Missing, empty, whitespace-only or malformed XML/JSON reports.
+- Missing, negative, noninteger or inconsistent Jest counters and missing timing.
+- Zero executed tests: only passed and failed tests count as executed; skipped
+  and todo tests do not.
+- Failed tests, failed suites, `success !== true`, JUnit failures/errors or a
+  test step whose `TEST_OUTCOME` is not `success`.
+- Disagreement between JUnit testcases/counters and native Jest counts. The
+  pinned JUnit reporter includes todo testcases but excludes them from its
+  `tests` and `skipped` counters; Jest JSON preserves both skipped and todo counts.
+- Missing/invalid coverage when `COVERAGE_EXPECTED=true`, including invalid
+  percentages/counts, empty source coverage, incomplete LCOV records, duplicate
+  records, declaration/test sources or line/function/branch totals that disagree
+  with the JSON summary. HTML must also be present and contain an HTML document.
+
+`reports/metadata.json` is written even when validation fails. It records the
+actual `git rev-parse HEAD`, repository/event/ref, run ID and attempt, collection
+time, Node/npm versions, test outcome, native Jest counters, elapsed milliseconds,
+coverage metrics and validation errors. Duration is the latest Jest suite end
+minus the run's `startTime`, rather than the sum of parallel suite durations.
+`ANALYSIS_COMMIT` must match the checkout; a mismatch fails validation and retains
+the actual SHA in metadata.
+
+A complete passing coverage execution also writes `reports/coverage/analysis.json`
+with the same context and metrics plus `lcov.path` and `lcov.sha256`. The checksum
+uses the actual LCOV bytes without newline normalization. A failed validation
+removes any stale `analysis.json` and does not publish a successful baseline;
+the raw reports remain available for diagnosis. No minimum coverage threshold is
+configured in this phase.
+
+The Actions summary contains only report status, aggregate suite/test counts,
+skipped/todo counts, elapsed time and coverage percentages. It never interpolates
+test names, failure messages, source code or parser error details. Detailed
+failures stay in the logs and artifacts. Automated fixtures include sentinel
+names and failure text to verify this boundary.
+
+### 5.3. Matrix and artifacts
+
+The `quality` job now also runs `test:ci-tools`. The test matrix remains Node
+20/22/24, with no database service or database axis. Each cell builds first and
+then invokes exactly one application test command:
+
+| Node | Test command | Artifacts |
+| --- | --- | --- |
+| 20 | `test:ci` | `updater-tests-node20-<RUN_ID>-<ATTEMPT>` |
+| 22 | `test:coverage:ci` | `updater-tests-node22-<RUN_ID>-<ATTEMPT>` and `updater-coverage-node22-<RUN_ID>` |
+| 24 | `test:ci` | `updater-tests-node24-<RUN_ID>-<ATTEMPT>` |
+
+The test artifact contains `tests/junit.xml`, `tests/results.json` and
+`metadata.json`. The coverage artifact contains `lcov.info`,
+`coverage-summary.json`, `index.html`, the supporting HTML assets and, only after
+successful validation, `analysis.json`. Generated `/reports/` files are ignored
+by Git.
+
+Validation and both uploads use `!cancelled()` plus an attempted-test condition,
+so they still run after test or validation failures. The test step has no
+`continue-on-error`; its original failure continues to fail the matrix cell and
+`updater-ci`. Setup/build failures do not claim to have executed tests, and
+cancelled jobs are not guaranteed to publish artifacts.
+
+Uploads use `actions/upload-artifact@v4`, `if-no-files-found: error` and 14-day
+retention. Test names include the run attempt to preserve each attempt's evidence.
+Coverage uses `overwrite: true` with a stable run ID so a partial rerun replaces
+the earlier coverage artifact; `analysis.json` identifies the producing attempt.
+Even failed reference executions attempt the coverage upload, preserving any
+partial files and replacing earlier evidence for the same run.
+
+Reporter configuration follows the [jest-junit documentation](https://github.com/jest-community/jest-junit#configuration).
+Artifact replacement follows [upload-artifact's overwrite behavior](https://github.com/actions/upload-artifact/tree/v4#overwriting-an-artifact).
+
+### 5.4. Reference measurement and local verification
+
+Verified on 2026-11-04 in an isolated temporary Git repository containing the
+implementation, based on Updater revision `8f8658b`. Its local verification
+commit is `945be7523caa93f31e6a299c8f20f6433bc6301a`; this is the SHA recorded in
+all three matrix reports and the reference `analysis.json`, not a published
+Updater commit. Subsequent edits to this document record the measurements; the
+executed source, configuration and CI scripts match that snapshot.
+
+Each runtime used npm `11.21.1` and a clean `npm ci --no-audit --no-fund` with an
+npm download cache. All installations added 665 packages without changing the
+lockfile. npm reported the existing `allowScripts` warning for
+`@parcel/watcher@2.6.0`; installation completed successfully.
+
+| Node | Install | Build | Test command | Tests | Report validation | Duration (ms) |
+| --- | --- | --- | --- | --- | --- | --- |
+| `20.20.0` | Passed | Passed | `test:ci` | 14 passed, 1 skipped, 0 todo | Passed | 5,124 |
+| `22.22.3` | Passed | Passed | `test:coverage:ci` | 14 passed, 1 skipped, 0 todo | Passed | 9,540 |
+| `24.19.0` | Passed | Passed | `test:ci` | 14 passed, 1 skipped, 0 todo | Passed | 4,608 |
+
+All cells discovered 3 suites and 15 tests, with 14 executed and no failed tests
+or suites. The Node 22 reference suite ran once with coverage enabled. Its
+measurement is:
+
+| Metric | Covered / total | Coverage |
+| --- | --- | --- |
+| Lines | 82 / 194 | 42.26% |
+| Statements | 88 / 217 | 40.55% |
+| Functions | 11 / 33 | 33.33% |
+| Branches | 21 / 80 | 26.25% |
+
+The measured line baseline is **42.26%**, replacing the earlier approximate
+43% figure for the explicit scope used here. LCOV contains 12 source records,
+including both configuration factories, with no declaration or specification
+files. The config factories contribute 4 uncovered lines. The single skipped
+test remains the existing `describe.skip` in
+`src/updates/updates.controller.spec.ts`; it was not introduced by this phase.
+
+Reference LCOV SHA-256:
+`9265327f6b397e788c2ff9afe7d7bec415cd6009788ed2add6221fd9b982575a`.
+The recorded collection time is `2026-11-04T09:23:30.438Z`. Local execution has
+no GitHub run ID or attempt, so those fields are `null`; hosted executions take
+their real values from `GITHUB_RUN_ID` and `GITHUB_RUN_ATTEMPT`. Validator tests
+also verify an explicit producing attempt and byte-exact checksum generation.
+
+| Additional verification | Result |
+| --- | --- |
+| `test:ci-tools`, Node 22 | 65 passed; successful/failing reports, missing/malformed files, statistics, timing, coverage integrity, checksum, stale-analysis removal and focused-test detection |
+| `lint:check` and `format:check`, Node 22 | Passed |
+| Test discovery before/after changing Jest roots | Same 3 `src/**/*.spec.ts` files |
+| Real failing-test fixture, Node 20 | Jest and validator returned 1; JUnit, JSON and metadata retained; summary excluded failure text |
+| Real failed-suite fixture, Node 24 | Jest and validator returned 1; failed-suite evidence retained |
+| No matching tests, Node 20 | Jest returned 1 without `--passWithNoTests`; earlier reports were cleared and validation wrote failing metadata |
+| Python XML parser and independent LCOV SHA-256 calculation | All matrix XML parsed; Node 22 checksum matched `analysis.json` |
+| Actionlint `1.7.7`, with unavailable ShellCheck disabled | Passed |
+| `git diff --check` | Passed |
+
+Local evidence and logs are retained under
+`/tmp/fwcloud-updater-phase2-evidence/` for this workspace; they are not committed
+reports or hosted Actions artifacts. Only the documentation records the initial
+measurement in Git. No hosted run or artifact upload is claimed by these checks.
+
+To reproduce the reference locally, select Node 22 and the pinned npm, run
+`npm ci`, then `CI=true npm run test:coverage:ci`. After a successful execution,
+run `TEST_OUTCOME=success COVERAGE_EXPECTED=true npm run ci:reports` and inspect
+`reports/coverage/analysis.json`. The workflow supplies the actual test outcome
+even when tests fail.
+
+### 5.5. Hosted acceptance pending
+
+- [ ] Record a complete Actions run against the final implementation commit,
+  with all three matrix cells and `quality` successful.
+- [ ] Download each `updater-tests-node<N>-<RUN_ID>-<ATTEMPT>` artifact and verify
+  its XML, JSON, metadata, checkout SHA and runtime.
+- [ ] Download `updater-coverage-node22-<RUN_ID>` and verify the HTML assets,
+  metrics, producing attempt and independently computed LCOV checksum.
+- [ ] Confirm test and validation failures retain artifacts and fail `updater-ci`.
+- [ ] Partially rerun Node 22 and verify coverage replacement and the updated
+  attempt, while earlier attempt-specific test artifacts remain available.
+- [ ] Inspect successful and failed summaries for aggregate statistics only.
+
+These hosted checks remain pending until the workflow is published and executed.
