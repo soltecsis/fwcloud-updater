@@ -49,6 +49,8 @@ jobs:
         run: npm run lint:check
       - name: Run Prettier
         run: npm run format:check
+      - name: Test CI report tooling
+        run: npm run test:ci-tools
 
   test:
     name: FWCloud-Updater Test (Node ${{ matrix.node-version }})
@@ -82,8 +84,41 @@ jobs:
         run: npm ci
       - name: Build FWCloud-Updater
         run: npm run build
-      - name: Run tests
-        run: npm run test
+      - name: Run tests and collect reports
+        id: tests
+        env:
+          NODE_MAJOR: ${{ matrix.node-version }}
+        run: |
+          if [ "$NODE_MAJOR" = 22 ]; then
+            npm run test:coverage:ci
+          else
+            npm run test:ci
+          fi
+      - name: Validate reports and record analysis context
+        if: ${{ !cancelled() && steps.tests.outcome != 'skipped' }}
+        env:
+          TEST_OUTCOME: ${{ steps.tests.outcome }}
+          COVERAGE_EXPECTED: ${{ matrix.node-version == '22' }}
+        run: npm run ci:reports
+      - name: Upload test reports
+        if: ${{ !cancelled() && steps.tests.outcome != 'skipped' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: updater-tests-node${{ matrix.node-version }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            reports/tests/
+            reports/metadata.json
+          if-no-files-found: error
+          retention-days: 14
+      - name: Upload reference coverage
+        if: ${{ !cancelled() && steps.tests.outcome != 'skipped' && matrix.node-version == '22' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: updater-coverage-node22-${{ github.run_id }}
+          path: reports/coverage/
+          overwrite: true
+          if-no-files-found: error
+          retention-days: 14
 
   updater-ci:
     name: updater-ci
