@@ -52,6 +52,126 @@ jobs:
       - name: Test CI report tooling
         run: npm run test:ci-tools
 
+  secrets:
+    name: FWCloud-Updater Secrets
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GITLEAKS_VERSION: '8.30.1'
+      GITLEAKS_ARCHIVE_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.ANALYSIS_COMMIT }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Install verified Gitleaks
+        env:
+          GITLEAKS_ARCHIVE: gitleaks_${{ env.GITLEAKS_VERSION }}_linux_x64.tar.gz
+        run: |
+          curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/${GITLEAKS_ARCHIVE}" \
+            --output "$RUNNER_TEMP/$GITLEAKS_ARCHIVE"
+          printf '%s  %s\n' "$GITLEAKS_ARCHIVE_SHA256" "$RUNNER_TEMP/$GITLEAKS_ARCHIVE" \
+            | sha256sum --check --strict
+          tar -xzf "$RUNNER_TEMP/$GITLEAKS_ARCHIVE" -C "$RUNNER_TEMP" gitleaks
+          VERSION=$("$RUNNER_TEMP/gitleaks" version)
+          test "${VERSION#v}" = "$GITLEAKS_VERSION"
+      - name: Determine scan scope
+        id: scope
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          [[ "$ANALYSIS_COMMIT" =~ ^[0-9a-f]{40}$ ]]
+          test "$(git rev-parse HEAD)" = "$ANALYSIS_COMMIT"
+          test "$(git rev-parse --is-shallow-repository)" = false
+          git cat-file -e "$ANALYSIS_COMMIT^{commit}"
+          if [ "$EVENT_NAME" = pull_request ]; then
+            [[ "$BASE_SHA" =~ ^[0-9a-f]{40}$ ]]
+            git cat-file -e "$BASE_SHA^{commit}"
+            MERGE_BASE=$(git merge-base "$BASE_SHA" "$ANALYSIS_COMMIT")
+            RANGE="$MERGE_BASE..$ANALYSIS_COMMIT"
+            SCAN_SCOPE="pull-request:$RANGE"
+          elif [ "$EVENT_NAME" = push ]; then
+            [[ "$BEFORE_SHA" =~ ^[0-9a-f]{40}$ ]]
+            if [[ "$BEFORE_SHA" =~ ^0+$ ]]; then
+              RANGE="$ANALYSIS_COMMIT"
+              SCAN_SCOPE="new-branch-history:$RANGE"
+            else
+              git cat-file -e "$BEFORE_SHA^{commit}"
+              RANGE="$BEFORE_SHA..$ANALYSIS_COMMIT"
+              SCAN_SCOPE="push:$RANGE"
+            fi
+          elif [ "$EVENT_NAME" = workflow_dispatch ]; then
+            RANGE="--all"
+            SCAN_SCOPE="full-history"
+          else
+            echo "Unsupported event: $EVENT_NAME" >&2
+            exit 1
+          fi
+          # Patch every committed change: .gitattributes (-diff, binary,
+          # diff=<driver>) and NUL bytes must not hide content, and merge
+          # commits must expose content added while resolving them.
+          echo "log_opts=--text --no-textconv --remerge-diff $RANGE" >> "$GITHUB_OUTPUT"
+          echo "scan_scope=$SCAN_SCOPE" >> "$GITHUB_OUTPUT"
+      - name: Scan secrets
+        id: gitleaks
+        env:
+          GITLEAKS_LOG_OPTS: ${{ steps.scope.outputs.log_opts }}
+        run: |
+          umask 077
+          rm -rf reports/secrets
+          mkdir -p reports/secrets
+          test ! -e .gitleaksignore
+          test ! -L .gitleaksignore
+          : > "$RUNNER_TEMP/gitleaks.ignore"
+          set +e
+          "$RUNNER_TEMP/gitleaks" git . \
+            --config .gitleaks.toml \
+            --log-opts="$GITLEAKS_LOG_OPTS" \
+            --gitleaks-ignore-path "$RUNNER_TEMP/gitleaks.ignore" \
+            --ignore-gitleaks-allow \
+            --redact=100 \
+            --report-format json \
+            --report-path reports/secrets/gitleaks.json \
+            --timeout 300 \
+            --log-level error \
+            --no-banner \
+            --no-color \
+            > "$RUNNER_TEMP/gitleaks.log" 2>&1
+          STATUS=$?
+          set -e
+          # Error messages only, never findings. Gitleaks 8.30.1 exits 0 after
+          # git errors, so any logged line makes the report step fail.
+          cat "$RUNNER_TEMP/gitleaks.log"
+          echo "exit_code=$STATUS" >> "$GITHUB_OUTPUT"
+          echo "log_lines=$(awk 'END { print NR }' "$RUNNER_TEMP/gitleaks.log")" >> "$GITHUB_OUTPUT"
+      - name: Verify and summarize secret scan
+        if: ${{ !cancelled() && steps.gitleaks.outcome != 'skipped' }}
+        env:
+          GITLEAKS_EXIT_CODE: ${{ steps.gitleaks.outputs.exit_code }}
+          GITLEAKS_LOG_LINES: ${{ steps.gitleaks.outputs.log_lines }}
+          GITLEAKS_LOG_OPTS: ${{ steps.scope.outputs.log_opts }}
+          GITLEAKS_SCAN_SCOPE: ${{ steps.scope.outputs.scan_scope }}
+        run: node scripts/gitleaks-report.cjs
+      - name: Remove detailed secret report
+        if: ${{ always() }}
+        run: |
+          rm -f reports/secrets/gitleaks.json "$RUNNER_TEMP/gitleaks.ignore" "$RUNNER_TEMP/gitleaks.log"
+          test ! -e reports/secrets/gitleaks.json
+      - name: Upload sanitized secret scan evidence
+        if: ${{ !cancelled() && steps.gitleaks.outcome != 'skipped' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: updater-secrets-${{ github.run_id }}-${{ github.run_attempt }}
+          path: reports/secrets/metadata.json
+          if-no-files-found: error
+          retention-days: 90
+
   test:
     name: FWCloud-Updater Test (Node ${{ matrix.node-version }})
     runs-on: ubuntu-latest
