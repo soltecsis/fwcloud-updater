@@ -336,8 +336,8 @@ so they still run after test or validation failures. The test step has no
 `updater-ci`. Setup/build failures do not claim to have executed tests, and
 cancelled jobs are not guaranteed to publish artifacts.
 
-Uploads use `actions/upload-artifact@v4`, `if-no-files-found: error` and 14-day
-retention. Test names include the run attempt to preserve each attempt's evidence.
+Uploads use `actions/upload-artifact@v4`, `if-no-files-found: error` and request
+90-day retention. Test names include the run attempt to preserve each attempt's evidence.
 Coverage uses `overwrite: true` with a stable run ID so a partial rerun replaces
 the earlier coverage artifact; `analysis.json` identifies the producing attempt.
 Even failed reference executions attempt the coverage upload, preserving any
