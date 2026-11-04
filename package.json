@@ -5,6 +5,10 @@
   "author": "SOLTECSIS (https://soltecsis.com)",
   "private": false,
   "license": "AGPL-3.0-or-later",
+  "packageManager": "npm@11.21.1",
+  "engines": {
+    "node": ">=20"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/soltecsis/fwcloud-updater.git"

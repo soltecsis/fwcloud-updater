@@ -1,45 +1,102 @@
 name: FWCloud-Updater CI
 
-on: [push, pull_request]
+on:
+  push:
+    branches: [main, devel, ENS]
+  pull_request:
+    branches: [main, devel, ENS]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  CI: true
+  ANALYSIS_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
 
 jobs:
+  quality:
+    name: FWCloud-Updater Quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.ANALYSIS_COMMIT }}
+
+      - name: Use Node.js 22
+        uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - name: Install pinned npm
+        run: |
+          NPM_VERSION=$(node -p 'require("./package.json").packageManager.split("@")[1]')
+          npm install --global "npm@$NPM_VERSION" --ignore-scripts --no-audit --no-fund
+      - name: Show runtime versions
+        run: |
+          node --version
+          npm --version
+      - name: Install dependencies
+        run: npm ci
+      - name: Run ESLint
+        run: npm run lint:check
+      - name: Run Prettier
+        run: npm run format:check
+
   test:
-    name: 'FWCloud-Updater Test'
+    name: FWCloud-Updater Test (Node ${{ matrix.node-version }})
     runs-on: ubuntu-latest
 
     strategy:
+      fail-fast: false
       matrix:
-        node-version: ['18', '20', '22']
+        node-version: ['20', '22', '24']
 
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.ANALYSIS_COMMIT }}
 
-    - name: Use Node.js ${{ matrix.node-version }}
-      uses: actions/setup-node@v5
-      with:
-        node-version: ${{ matrix.node-version }}
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v5
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - name: Install pinned npm
+        run: |
+          NPM_VERSION=$(node -p 'require("./package.json").packageManager.split("@")[1]')
+          npm install --global "npm@$NPM_VERSION" --ignore-scripts --no-audit --no-fund
+      - name: Show runtime versions
+        run: |
+          node --version
+          npm --version
+      - name: Install dependencies
+        run: npm ci
+      - name: Build FWCloud-Updater
+        run: npm run build
+      - name: Run tests
+        run: npm run test
 
-    - name: Cache node modules
-      uses: actions/cache@v4
-      env:
-        cache-name: cache-node-modules
-      with:
-        path: ~/.npm # npm cache files are stored in `~/.npm` on Linux/macOS
-        key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('**/package-lock.json') }}
-        restore-keys: |
-          ${{ runner.os }}-build-${{ env.cache-name }}-
-          ${{ runner.os }}-build-
-          ${{ runner.os }}-
-    - name: Install dependencies
-      run: npm install
-    - name: Run ESLint
-      if: matrix.node-version == '18' || matrix.node-version == '20'
-      run: npm run lint:check
-    - name: Run Prettier
-      run: npm run format:check
-    - name: Build FWCloud-Updater
-      run: npm run build
-    - name: Run tests
-      run: npm run test
-      env:
-        CI: true
+  updater-ci:
+    name: updater-ci
+    if: ${{ always() }}
+    needs: [quality, test]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Require all checks to succeed
+        env:
+          QUALITY_RESULT: ${{ needs.quality.result }}
+          TEST_RESULT: ${{ needs.test.result }}
+        run: |
+          test "$QUALITY_RESULT" = success
+          test "$TEST_RESULT" = success
