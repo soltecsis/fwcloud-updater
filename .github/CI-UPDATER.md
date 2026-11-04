@@ -21,7 +21,8 @@ approach established in FWCloud UI.
 
 Deployment, security scanning, coverage reporting and SonarQube integration were
 outside Phase 1. Phase 2 adds test reports and a reference coverage measurement,
-as described in section 5.
+as described in section 5. Phase 3 makes the suite hermetic and adds
+authorization and HTTP integration tests, as described in section 6.
 
 ## 2. Current technical decisions
 
@@ -61,6 +62,7 @@ lockfile change is the root package's Node engine metadata.
 | --- | --- | --- | --- |
 | 1 | Reproducible installation, separate quality/test jobs, execution controls and `updater-ci` | Implemented and verified locally; GitHub acceptance pending | Local checks pass, a PR to `ENS` passes every required job, event/cancellation behavior is verified and branch protection requires `updater-ci` |
 | 2 | Validated Jest/JUnit reports, execution metadata and a Node 22 coverage reference | Implemented; local verification recorded in section 5; GitHub acceptance pending | Every matrix cell uploads test evidence, Node 22 uploads validated coverage, failures preserve artifacts and the summary contains aggregates only |
+| 3 | Hermetic unit tests, authorization coverage and an HTTP integration suite | Implemented; local verification recorded in section 6; GitHub acceptance pending | The suite passes inside and outside Git on Node 20/22/24, every authentication rejection branch is covered and unauthenticated HTTP requests cannot reach update execution |
 
 Further CI extensions require separate scope and acceptance criteria.
 
@@ -420,3 +422,172 @@ even when tests fail.
 - [ ] Inspect successful and failed summaries for aggregate statistics only.
 
 These hosted checks remain pending until the workflow is published and executed.
+
+## 6. Phase 3 — Hermetic tests, authorization coverage and integration
+
+### 6.1. Problem and approach
+
+Before this phase, five `UpdatesService` tests required `git rev-parse` to succeed
+in the configured fixture directories, so the suite failed outside a Git checkout.
+Fixture paths also assumed that the working directory was the repository root.
+`updates.controller.spec.ts` was disabled with `describe.skip`, both middlewares
+had no tests and `test:e2e` matched no files.
+
+Reproduction at revision `d3e1c5e`, in a copy without `.git`: 5 failed, 9 passed
+and 1 skipped test.
+
+No production code changed in this phase. The tests isolate external effects as
+follows:
+
+| Dependency | Isolation |
+| --- | --- |
+| Git branch lookup | `child_process.exec` is replaced with a Jest mock that keeps the other exports. Each test chooses the branch or Git error. |
+| Version fixtures | Paths derive from the spec location (`__dirname`), not from `process.cwd()`. |
+| Update commands | `child-process-promise.spawn` remains mocked. |
+| Remote versions | `axios.get` remains mocked. Configured URLs use the reserved `.invalid` TLD. |
+| Background update delay | Jest fake timers replace the earlier real 1.1-second waits. |
+| Sessions | Synthetic JSON files are written under an `fs.mkdtempSync` directory in the OS temporary directory and removed in `afterAll`. |
+| Logging in integration tests | `LogsService` is overridden, so no log files are written. |
+
+Mocking `exec` was chosen over an injectable branch resolver because it covers
+the existing `getGitBranch` implementation without changing the service's
+dependency-injection contract.
+
+### 6.2. Tests added or reactivated
+
+| Suite | Coverage |
+| --- | --- |
+| `src/updates/updates.service.spec.ts` | Branch resolution and its error, the exact Git command and `cwd`, the remote URL built from the branch, Git and HTTP failures, version comparison, UI update failure (HTTP 405), and background API/websrv updates: no spawn before the delay, update then `start:bg`, the detached process is `unref`ed, and failed updates log without restarting |
+| `src/updates/updates.controller.spec.ts` | `describe.skip` removed. Version info for all four components (including `null` results), each `PUT` delegating `runUpdate` with its `Apps` value, and error propagation |
+| `src/middleware/auth.middleware.spec.ts` | Every rejection branch (table in 6.3) and the valid administrator path |
+| `src/middleware/log-request.middleware.spec.ts` | Logs `<ip>\|HTTP/<version>\|<METHOD>\|<originalUrl>` before calling `next()` once with no arguments; frozen request and response objects prove that neither is modified |
+| `test/updates.e2e-spec.ts` | Real `AppModule` (configuration, middleware registration and routing) plus `cookie-parser` registered as in `src/main.ts`, over real HTTP on `127.0.0.1` with an ephemeral port |
+
+The integration suite overrides `UpdatesService` and `LogsService`, and sets
+`API_INSTALL_DIR` to a temporary directory before compiling the module. With
+`@nestjs/config` `4.0.4`, existing `process.env` values take precedence over a
+local `.env` file. The original value is restored during teardown, along with
+closing the application and removing the directory. Requests use `node:http`
+with `agent: false`, so each connection closes after its response; no HTTP test
+dependency was added.
+
+### 6.3. Authorization evidence
+
+Every `AuthMiddleware` rejection must produce HTTP 403, must not call `next()` and
+must log the same error message.
+
+| Scenario | Unit (`auth.middleware.spec.ts`) | Integration (`PUT /updates/api`) |
+| --- | --- | --- |
+| No cookies | 403 `No cookies found` | — (`cookie-parser` always defines cookies) |
+| Missing or empty `FWCloud.net-cookie` | 403 | 403 on `PUT /updates/api`, `/ui`, `/websrv` and `GET /updates`; the service is never called |
+| Malformed cookie: zero or several `:` / `.` separators | 403 `Bad cookie data` | — |
+| `s:../outside.signature` with a valid admin session outside `sessions/` | 403 `Bad cookie data` | — |
+| Nonexistent session file | 403 (`ENOENT`) | 403, `runUpdate` not called |
+| Session file is not valid JSON, or has no `cookie` data | 403 | — |
+| Expired session, `maxAge` `0` or `-1` | 403 `Session expired` | 403 (`maxAge` `0`), `runUpdate` not called |
+| Missing `customer_id`, `user_id`, `username`, `pgp` or `admin_role` | 403 `Bad session data` | — |
+| `admin_role: false` | 403 | 403, `runUpdate` not called |
+| Valid administrator session | `next()` called once | `GET /updates` 200 with all four components; `PUT /updates/api` 200 and `runUpdate('api')` |
+
+The successful integration cases show that the 403 responses come from
+authentication, not from routing. Two temporary mutations confirmed that the
+tests detect regressions; both were reverted:
+
+| Mutation | Result |
+| --- | --- |
+| `AuthMiddleware` not registered in `AppModule` | 7 of 9 integration tests failed: every unauthenticated and unauthorized case |
+| `admin_role` check never matches `false` | The unit and integration non-administrator tests failed |
+
+### 6.4. Jest configuration
+
+- `roots` now includes `<rootDir>/test`, and `testRegex` is
+  `.*\.(e2e-)?spec\.ts$`. `test`, `test:ci` and `test:coverage:ci` therefore run
+  the integration suite in the same Jest execution, JUnit/JSON reports and
+  coverage. `test:e2e` runs only `test/*.e2e-spec.ts` through
+  `test/jest-e2e.json`.
+- `moduleNameMapper` maps `^src/(.*)$` to the source tree. The middlewares and
+  `UpdatesModule` import `src/...`; `nest build` rewrites those paths, but Jest
+  could not resolve them.
+- `modulePathIgnorePatterns` excludes `test/DATA/` in both configurations. Those
+  fixtures have duplicate package names and intentionally invalid JSON, which
+  break Jest's module map once `test/` is a root.
+- The `lint`, `format` and `format:fix` globs used `tests`, which does not exist.
+  They now use `test`, so `jest/no-focused-tests` and Prettier also check the
+  integration spec.
+- No coverage threshold is configured.
+
+### 6.5. Local verification
+
+Verified on 2026-11-04. Each runtime used npm `11.21.1` and a separate copy of the
+working tree **without `.git`**, `.env`, `logs/`, `dist/` or `reports/`, so the
+tests could not reach a Git repository:
+
+| Node | `npm ci` | `npm run build` | Test command | Result | `npm run test:e2e` |
+| --- | --- | --- | --- | --- | --- |
+| `20.20.0` | Passed | Passed | `test:ci` | 6 suites, 61 passed | 9 passed |
+| `22.22.3` | Passed | Passed | `test:coverage:ci` | 6 suites, 61 passed | 9 passed |
+| `24.19.0` | Passed | Passed | `test:ci` | 6 suites, 61 passed | 9 passed |
+
+`ci:reports` failed in these copies with `Cannot verify the checked-out analysis
+commit.`, as designed in Phase 2: it must record the checked-out commit. Each
+copy was then committed to a throwaway local repository, snapshot
+`f60223cd60ef745acceae023ef6229813e611c1a` (not a published commit). The test
+command and `ci:reports` passed on all three runtimes, with 61 executed tests and
+no skipped, todo or failed tests.
+
+| Additional check | Result |
+| --- | --- |
+| Working directory outside the repository (Jest config with absolute `rootDir`) | Updates, middleware and integration suites: 60 passed; nothing written to the working directory |
+| `jest --detectOpenHandles` on the integration suite | No open handles reported |
+| Leftover `fwcloud-updater-auth-*` / `fwcloud-updater-e2e-*` temporary directories | None |
+| `npm run lint:check` and `npm run format:check`, Node 22 | Passed |
+| `npm run test:ci-tools`, Node 22 | 65 passed |
+| `package-lock.json` | Unchanged |
+| `git diff --check` | Passed |
+
+### 6.6. Coverage
+
+Reference execution: Node `22.22.3`, `test:coverage:ci` and `ci:reports` with
+`COVERAGE_EXPECTED=true`, in the Git snapshot above, collected at
+`2026-11-04T09:59:56.610Z`. The baseline is revision `d3e1c5e` measured under the
+same conditions: committed snapshot, no `.env` and no `logs/` directory.
+
+| Metric | Baseline `d3e1c5e` | Phase 3 |
+| --- | --- | --- |
+| Lines | 83 / 194 (42.78%) | 153 / 194 (78.86%) |
+| Statements | 89 / 217 (41.01%) | 175 / 217 (80.64%) |
+| Functions | 11 / 33 (33.33%) | 23 / 33 (69.69%) |
+| Branches | 21 / 80 (26.25%) | 71 / 80 (88.75%) |
+
+| File | Baseline lines / branches | Phase 3 lines / branches |
+| --- | --- | --- |
+| `src/middleware/auth.middleware.ts` | 0% / 0% | 100% (29/29) / 100% (23/23) |
+| `src/middleware/log-request.middleware.ts` | 0% / — | 100% (6/6) / — |
+| `src/updates/updates.controller.ts` | 57.14% / — | 100% (14/14) / — |
+| `src/updates/updates.service.ts` | 88.57% / 94.73% | 97.14% (68/70) / 100% (19/19) |
+| `src/app.module.ts` | 0% | 100% (11/11) |
+
+Reference LCOV SHA-256:
+`d0844ee9dc63a91229ddf292a7aa2a88463aef175db0aed19a838af63dc1feae` (12 source
+records). The remaining uncovered lines in `updates.service.ts` are the
+unreadable-directory branch of `runUpdate`. `src/main.ts` (0/34 lines) is not
+exercised: the integration suite reproduces its `cookie-parser` registration but
+does not run the HTTPS and PID-file bootstrap.
+
+Two pre-existing paths make the totals depend on the environment.
+`LogsService` creates `logs/` only when that directory is absent; fresh CI
+checkouts have no `logs/`, while a development tree normally does, which accounts
+for one line. A local `.env` also changes which `process.env.X || default`
+branches of the configuration factories execute. Phase 2 recorded 82 lines
+(42.26%) for the baseline, one line fewer than this measurement. Compare
+coverage only between executions with the same `logs/` and `.env` conditions.
+
+### 6.7. Remaining work
+
+- `src/logs/logs.service.spec.ts` (unchanged) instantiates the real
+  `LogsService`, which creates `logs/` and opens Winston file transports in the
+  working directory. The new suites avoid this, but that spec still depends on a
+  writable working directory.
+- Hosted acceptance: record a complete Actions run against the final commit with
+  61 tests per matrix cell, and confirm that the Node 22 artifact contains the
+  integration suite's coverage.
