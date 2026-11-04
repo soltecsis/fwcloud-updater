@@ -387,10 +387,78 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+  sonar:
+    name: FWCloud-Updater SonarQube
+    needs: [quality, test, secrets, sca]
+    # Fork/Dependabot runs do not receive SONAR_TOKEN. Scan after merge on push.
+    if: >-
+      ${{ github.actor != 'dependabot[bot]' &&
+          (github.event_name != 'pull_request' ||
+           (github.event.pull_request.head.repo.full_name == github.repository &&
+            github.event.pull_request.user.login != 'dependabot[bot]')) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout tested revision
+        id: checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.ANALYSIS_COMMIT }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Use Node.js 22
+        uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - name: Download reference coverage from this execution
+        id: coverage
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: updater-coverage-node22-${{ github.run_id }}
+          path: ${{ runner.temp }}/updater-coverage
+      - name: Verify revision, coverage and scanner configuration
+        id: analysis
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          SONAR_TOKEN_AVAILABLE: ${{ secrets.SONAR_TOKEN != '' }}
+        run: |
+          if [ "$SONAR_TOKEN_AVAILABLE" != true ]; then
+            echo 'SONAR_TOKEN is required for eligible SonarQube executions.' >&2
+            exit 1
+          fi
+          node scripts/sonar-analysis.cjs prepare "$RUNNER_TEMP/updater-coverage"
+      - name: Official SonarQube scan and Quality Gate
+        id: scan
+        uses: SonarSource/sonarqube-scan-action@d209202bc7d53ff1cc128f7f907dac145c9d6ae9 # v8.3.0
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: https://sonarcloud.io
+        with:
+          scannerVersion: 8.1.0.6389
+          skipSignatureVerification: false
+          args: ${{ steps.analysis.outputs.args }}
+      - name: Record aggregate analysis evidence
+        if: ${{ always() && steps.checkout.outcome == 'success' }}
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          DOWNLOAD_OUTCOME: ${{ steps.coverage.outcome }}
+          ANALYSIS_OUTCOME: ${{ steps.analysis.outcome }}
+          SCAN_OUTCOME: ${{ steps.scan.outcome }}
+        run: node scripts/sonar-analysis.cjs record
+      - name: Upload aggregate SonarQube evidence
+        if: ${{ always() && steps.checkout.outcome == 'success' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: updater-sonarqube-${{ github.run_id }}-${{ github.run_attempt }}
+          path: reports/sonar/metadata.json
+          retention-days: 90
+          if-no-files-found: error
+
   updater-ci:
     name: updater-ci
     if: ${{ always() }}
-    needs: [quality, test, secrets, sca]
+    needs: [quality, test, secrets, sca, sonar]
     runs-on: ubuntu-latest
     timeout-minutes: 5
 
@@ -401,8 +469,24 @@ jobs:
           TEST_RESULT: ${{ needs.test.result }}
           SECRETS_RESULT: ${{ needs.secrets.result }}
           SCA_RESULT: ${{ needs.sca.result }}
+          SONAR_RESULT: ${{ needs.sonar.result }}
+          SONAR_REQUIRED: >-
+            ${{ github.actor != 'dependabot[bot]' &&
+                (github.event_name != 'pull_request' ||
+                 (github.event.pull_request.head.repo.full_name == github.repository &&
+                  github.event.pull_request.user.login != 'dependabot[bot]')) }}
+          SONAR_SKIP_REASON: ${{ (github.actor == 'dependabot[bot]' || github.event.pull_request.user.login == 'dependabot[bot]') && 'Dependabot execution' || 'fork pull request' }}
         run: |
+          if [ "$SONAR_REQUIRED" != true ]; then
+            printf 'SonarQube skipped: %s. Quality, tests, Gitleaks and Trivy remain required.\n' \
+              "$SONAR_SKIP_REASON" >> "$GITHUB_STEP_SUMMARY"
+          fi
           test "$QUALITY_RESULT" = success
           test "$TEST_RESULT" = success
           test "$SECRETS_RESULT" = success
           test "$SCA_RESULT" = success
+          if [ "$SONAR_REQUIRED" = true ]; then
+            test "$SONAR_RESULT" = success
+          else
+            test "$SONAR_RESULT" = skipped
+          fi

@@ -26,6 +26,7 @@ authorization and HTTP integration tests, as described in section 6. Phase 4
 adds Gitleaks secret detection and the initial history audit, as described in
 section 7. Phase 5 adds dependency SCA and an SBOM, following FWCloud API's
 Phase 4 Trivy configuration and evidence conventions, as described in section 8.
+The SonarQube integration follows API Phase 7 and is recorded in section 9.
 
 ## 2. Current technical decisions
 
@@ -1170,3 +1171,115 @@ Hosted acceptance remains pending:
   errors. Record the native failure and retained diagnostics.
 - Confirm branch protection requires `updater-ci`, and an unsuccessful or skipped
   SCA result cannot pass that required check.
+
+## 9. SonarQube Cloud (API Phase 7)
+
+### 9.1. Scope and implementation
+
+This phase follows FWCloud API Phase 7 using Updater's Node-only Jest evidence,
+without the API's database-matrix requirements. The analysis job consumes the
+existing Phase 2 Node 22 artifact; it does not install dependencies, build or
+repeat Jest. Administrative setup and local usage are documented in
+[docs/SONARQUBE.md](../docs/SONARQUBE.md).
+
+`sonar-project.properties` configures the proposed organization/project
+`soltecsis` / `soltecsis_fwcloud-updater`, Cloud EU, sources `src,config`, colocated
+`src/**/*.spec.ts` tests, `reports/coverage/lcov.info` and blocking Quality Gate
+waiting with a 300-second timeout. Production analysis excludes specifications,
+declarations and generated content. `test/` fixtures are outside the analysis
+roots. The dedicated `tsconfig.sonar.json` avoids production TypeScript 6 compiler
+options while retaining application module, target, decorator and alias settings;
+it does not alter the production build. Hosted analyzer precision, including
+external types without installed dependencies, remains an acceptance check.
+
+`sonar` is named `FWCloud-Updater SonarQube`, has a 20-minute timeout and depends
+on `quality`, `test`, `secrets` and `sca`. It checks out the same
+`ANALYSIS_COMMIT` with full history and without persisted credentials, downloads
+`updater-coverage-node22-<RUN_ID>` from that execution and validates it before
+scanning. The official action is pinned to
+`SonarSource/sonarqube-scan-action@d209202bc7d53ff1cc128f7f907dac145c9d6ae9`
+(v8.3.0), with CLI `8.1.0.6389` and signature verification enabled. Only the
+scanner step receives `SONAR_TOKEN`. No project dependencies are installed there.
+
+### 9.2. Evidence and failure policy
+
+`scripts/sonar-analysis.cjs` validates the actual Phase 2 schema: Jest test
+counters and success, Node `22.x`, successful test-step outcome, coverage metrics,
+`errors: []`, and `lcov.path` / `lcov.sha256`. It checks repository, checkout SHA,
+event, run ID and producer/consumer attempts. Coverage may come from an earlier
+attempt of the same run and revision, but never a later attempt or another run.
+The summary must agree with the producer metadata and LCOV records. Absolute or
+traversing paths, generated content, missing original sources and symlinks in
+`src/` or `config/` are rejected. Scanner configuration is validated before use.
+
+The stable coverage artifact name and existing `overwrite: true` producer policy
+allow partial reruns. Rerunning only Sonar reuses the available valid producer
+attempt. Rerunning Node 22 replaces the artifact for that execution. Sonar metadata
+records both attempts; a changed commit requires a new execution.
+
+`updater-sonarqube-<RUN_ID>-<ATTEMPT>` contains only
+`reports/sonar/metadata.json`, with 90 days of requested retention. It records
+revision/run context, coverage producer, checksums, configuration and scanner
+identity, validation/download/scan outcomes and the aggregate gate result. Evidence
+collection and upload run after failures when checkout context is available,
+including download/preparation failures. No scanner credentials, raw scanner
+logs, sources or `.scannerwork` are uploaded. Scanner failure remains blocking.
+
+`updater-ci.needs` includes `sonar`. Eligible pushes, internal PRs and manual runs
+require `sonar == success`; fork PRs and Dependabot actors/authors require
+`sonar == skipped`. The aggregate records the explicit skip reason in its Actions
+summary before enforcing every other upstream job. Quality, all tests, Gitleaks
+and Trivy remain required for excluded events. A missing token is an eligible
+execution failure. A push after merging an external PR into `ENS` analyzes the
+resulting commit, unless the actor is Dependabot.
+
+### 9.3. Local validation and hosted acceptance
+
+Local validation results are recorded separately from administrative and hosted
+acceptance. The local coverage experiment uses the current checkout and simulated
+run identifiers; it does not claim that Actions or SonarQube Cloud executed.
+
+Verified locally on 2026-11-04 with Node `22.20.0`:
+
+| Check | Result |
+| --- | --- |
+| `npm run test:ci-tools` | 251 passed, zero failures, one native Trivy test skipped because `TRIVY_BINARY` was unset; includes 150 Sonar helper tests and four workflow tests |
+| `npm run test:coverage:ci -- --runInBand` | Six suites and 61 tests passed; Jest line coverage 78.35% (152/194) |
+| Existing `ci:reports` collector on that Jest output | Passed; successful Node 22 metadata and exact LCOV checksum produced |
+| Real Jest artifact consumed by `prepare()` | Accepted all 12 original source records, including `config/`; producer attempt 1 reused for analysis attempt 2 |
+| Actual aggregate shell | All 2,048 required/excluded result combinations checked; other checks remain mandatory and skip summaries are retained after failures |
+| Actual token preflight shell | Missing, empty or false token-presence flag fails before preparation; true invokes the expected helper and coverage path |
+| `npm run lint:check` / `npm run format:check` | Passed, including new helpers and tests |
+| Analysis TSConfig with TypeScript `6.0.2` | No-emission check passed with CLI-only `--ignoreDeprecations 6.0`; explicit scope has 12 production files, five specifications and zero `test/` fixtures |
+| Actionlint `1.7.7`, JSON formatting and `git diff --check` | Passed; unavailable ShellCheck disabled in Actionlint |
+
+The coverage producer used the current checked-out revision
+`e6fb9729adffbf0d669440ed46b7aa8aa116f4fe`, with simulated run `123`, producer
+attempt `1` and analysis attempt `2`. Its LCOV SHA-256 was
+`1da528ae8ffa8ee8fe39f0f6f9dfc995aa089f560a9abb22f90552be46c7510f`.
+The integration changes were uncommitted during this local experiment. The
+scanner was not invoked against SonarQube Cloud. Failure/gate tests use controlled
+step outcomes to validate evidence and aggregation; they do not establish the
+remote Quality Gate's actual conditions or result.
+
+The sandbox initially denied HTTP test listeners and Git/npm subprocess calls
+with `EPERM`; coverage, report collection and tooling tests passed when repeated
+outside that restriction. No application or dependency changes were required.
+
+Administrative and hosted acceptance remain pending:
+
+- Verify the actual project key, repository binding and GitHub App access.
+- Disable Automatic Analysis; confirm analysis permission for `SONAR_TOKEN` and
+  repository access to the secret without exposing its value.
+- Record the assigned Quality Gate, new-code definition and plan entitlement for
+  `ENS` and internal PRs.
+- Run the final implementation commit in Actions, recording the run URL, SHA,
+  Sonar analysis URL, imported coverage, source/test indexing and gate result.
+- Exercise a passing/failing internal PR, failed gate, missing/invalid token and
+  scanner error; confirm both `sonar` and `updater-ci` fail as required.
+- Confirm fork/Dependabot skips with all other checks enforced and analysis of
+  the push following an external merge.
+- Rerun only Sonar and inspect reused coverage attempt, current analysis attempt,
+  artifact contents, failure evidence and effective retention.
+- Verify branch rules require `updater-ci` and enforce the result. Do not mark
+  the integration complete until project, permissions and gate are verified.
