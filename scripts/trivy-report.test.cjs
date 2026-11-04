@@ -23,6 +23,15 @@ function fixture(severity, fixedVersion = '1.0.1') {
       }
     : null;
   return {
+    lockfile: {
+      name: 'FWCloud-Updater',
+      lockfileVersion: 3,
+      packages: {
+        '': { name: 'FWCloud-Updater', version: '2.0.5' },
+        'node_modules/runtime-package': { version: '1.0.0' },
+        'node_modules/dev-package': { version: '2.0.0', dev: true },
+      },
+    },
     report: {
       SchemaVersion: 2,
       Trivy: { Version: '0.74.0' },
@@ -115,7 +124,11 @@ function collect(t, options = {}) {
       JSON.stringify(options.version ?? data.version),
     );
   if (!options.missingLockfile)
-    fs.writeFileSync(lockfilePath, '{"lockfileVersion":3}\n');
+    fs.writeFileSync(
+      lockfilePath,
+      options.lockfileContents ??
+        JSON.stringify(options.lockfile ?? data.lockfile),
+    );
 
   const result = spawnSync(process.execPath, [script], {
     cwd: directory,
@@ -200,6 +213,55 @@ test('reports unknown, low and medium findings without blocking the build', (t) 
   }
 });
 
+test('accepts supported lockfile formats, repeated identities and explicit package names', (t) => {
+  for (const lockfileVersion of [2, 3]) {
+    const data = fixture();
+    data.lockfile.lockfileVersion = lockfileVersion;
+    data.lockfile.packages[
+      'node_modules/dev-package/node_modules/runtime-package'
+    ] = { version: '1.0.0' };
+    data.lockfile.packages['node_modules/runtime-alias'] = {
+      name: 'runtime-package',
+      version: '1.0.0',
+    };
+    const { result, metadata } = collect(t, { lockfile: data.lockfile });
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(metadata.status, 'success');
+  }
+});
+
+test('rejects malformed, unsupported, empty or incomplete lockfile inventories', (t) => {
+  assert.equal(
+    collect(t, { lockfileContents: '{broken' }).metadata.status,
+    'error',
+  );
+  for (const lockfile of [
+    { lockfileVersion: 1, packages: {} },
+    { lockfileVersion: 3 },
+    { lockfileVersion: 3, packages: {} },
+    { lockfileVersion: 3, packages: { '': { name: 'root' } } },
+    { lockfileVersion: 3, packages: { 'node_modules/runtime-package': {} } },
+  ]) {
+    const { result, metadata } = collect(t, { lockfile });
+    assert.equal(result.status, 1);
+    assert.equal(metadata.status, 'error');
+    assert.ok(
+      metadata.errors.includes('Missing or invalid root lockfile inventory.'),
+    );
+  }
+});
+
+test('rejects mutually consistent reports that omit a lockfile dependency', (t) => {
+  const data = fixture();
+  data.lockfile.packages['node_modules/omitted-package'] = { version: '3.0.0' };
+  const { result, metadata } = collect(t, { lockfile: data.lockfile });
+  assert.equal(result.status, 1);
+  assert.equal(metadata.status, 'error');
+  assert.ok(
+    metadata.errors.includes('Root lockfile and Trivy npm inventories differ.'),
+  );
+});
+
 test('blocks high and critical findings, with or without a fix, without exposing details', (t) => {
   for (const severity of ['HIGH', 'CRITICAL']) {
     for (const fixedVersion of ['1.0.1', null]) {
@@ -271,6 +333,39 @@ test('rejects a report that did not inventory the root lockfile', (t) => {
   assert.equal(collect(t, { report: empty.report }).metadata.status, 'error');
 });
 
+test('rejects empty root inventory even when a nested lockfile inventories both scopes', (t) => {
+  const data = fixture();
+  data.report.Results.push({
+    ...data.report.Results[0],
+    Target: 'test/package-lock.json',
+  });
+  data.report.Results[0].Packages = [];
+  const { result, metadata } = collect(t, { report: data.report });
+  assert.equal(result.status, 1);
+  assert.equal(metadata.status, 'error');
+  assert.ok(metadata.errors.includes('Empty root npm inventory.'));
+});
+
+test('rejects missing root dependency scopes even when a nested lockfile provides them', (t) => {
+  for (const dev of [true, false]) {
+    const data = fixture();
+    const [moved] = data.report.Results[0].Packages.splice(dev ? 1 : 0, 1);
+    data.report.Results.push({
+      Target: 'test/package-lock.json',
+      Type: 'npm',
+      Packages: [moved],
+    });
+    const { result, metadata } = collect(t, { report: data.report });
+    assert.equal(result.status, 1);
+    assert.equal(metadata.status, 'error');
+    assert.ok(
+      metadata.errors.includes(
+        'Runtime or development npm inventory is empty.',
+      ),
+    );
+  }
+});
+
 test('rejects inconsistent report and SBOM component counts', (t) => {
   const data = fixture();
   data.sbom.components.pop();
@@ -329,6 +424,35 @@ test('rejects unexpected Trivy versions or missing database metadata', (t) => {
     collect(t, { version: { Version: '0.74.0' } }).metadata.status,
     'error',
   );
+  for (const reportVersion of ['0.73.0', undefined]) {
+    const data = fixture();
+    data.report.Trivy.Version = reportVersion;
+    const { result, metadata } = collect(t, { report: data.report });
+    assert.equal(result.status, 1);
+    assert.equal(metadata.status, 'error');
+    assert.ok(metadata.errors.includes('Unexpected Trivy report version.'));
+  }
+});
+
+test('rejects missing or invalid database versions and update timestamps', (t) => {
+  for (const invalidVersion of [undefined, null, 0, -1, 2.5, '2']) {
+    const data = fixture();
+    data.version.VulnerabilityDB.Version = invalidVersion;
+    assert.equal(
+      collect(t, { version: data.version }).metadata.status,
+      'error',
+    );
+  }
+  for (const field of ['UpdatedAt', 'NextUpdate']) {
+    for (const invalidTimestamp of [undefined, 'invalid']) {
+      const data = fixture();
+      data.version.VulnerabilityDB[field] = invalidTimestamp;
+      assert.equal(
+        collect(t, { version: data.version }).metadata.status,
+        'error',
+      );
+    }
+  }
 });
 
 test('rejects invalid CycloneDX versions and database timestamps', (t) => {

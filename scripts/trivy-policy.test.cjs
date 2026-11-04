@@ -15,8 +15,9 @@ test(
     );
     t.after(() => fs.rmSync(root, { recursive: true, force: true }));
     const reportPath = path.join(root, 'trivy.json');
-    const check = () =>
-      spawnSync(
+    const blockingPath = path.join(root, 'blocking.txt');
+    const check = () => {
+      const result = spawnSync(
         process.env.TRIVY_BINARY,
         [
           'convert',
@@ -26,16 +27,21 @@ test(
           '/dev/null',
           '--quiet',
           '--format',
-          'json',
+          'table',
+          '--scanners',
+          'vuln',
           '--severity',
           config.blockingSeverities.join(','),
           '--exit-code',
           String(config.findingsExitCode),
           reportPath,
         ],
-        { cwd: root, stdio: 'ignore' },
-      ).status;
-    for (const severity of ['MEDIUM', 'HIGH', 'CRITICAL']) {
+        { cwd: root, encoding: 'utf8' },
+      );
+      fs.writeFileSync(blockingPath, result.stdout + result.stderr);
+      return result.status;
+    };
+    for (const severity of ['UNKNOWN', 'LOW', 'MEDIUM', 'HIGH', 'CRITICAL']) {
       const input = JSON.stringify({
         SchemaVersion: 2,
         ArtifactType: 'repository',
@@ -58,9 +64,17 @@ test(
       fs.writeFileSync(reportPath, input);
       assert.equal(
         check(),
-        severity === 'MEDIUM' ? 0 : config.findingsExitCode,
+        config.blockingSeverities.includes(severity)
+          ? config.findingsExitCode
+          : 0,
       );
       assert.equal(fs.readFileSync(reportPath, 'utf8'), input);
+      const blocking = fs.readFileSync(blockingPath, 'utf8');
+      assert.equal(
+        blocking.includes('CVE-2099-0001'),
+        config.blockingSeverities.includes(severity),
+        blocking,
+      );
     }
     fs.writeFileSync(reportPath, '{}broken');
     assert.equal(check(), 1);

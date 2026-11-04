@@ -48,6 +48,42 @@ if (![0, config.findingsExitCode].includes(policyExitCode))
 const must = (condition, message) => {
   if (!condition) throw new Error(message);
 };
+let lockfileSha256 = null;
+let lockfileIds = [];
+try {
+  const contents = fs.readFileSync(
+    env.TRIVY_LOCKFILE_PATH || 'package-lock.json',
+  );
+  lockfileSha256 = crypto.createHash('sha256').update(contents).digest('hex');
+  const lockfile = JSON.parse(contents);
+  must(
+    [2, 3].includes(lockfile?.lockfileVersion) &&
+      lockfile.packages &&
+      typeof lockfile.packages === 'object' &&
+      !Array.isArray(lockfile.packages),
+    'Invalid lockfile inventory.',
+  );
+  lockfileIds = [
+    ...new Set(
+      Object.entries(lockfile.packages)
+        .filter(([packagePath]) => packagePath !== '')
+        .map(([packagePath, pkg]) => {
+          const name = pkg?.name || packagePath.split('node_modules/').at(-1);
+          must(
+            typeof name === 'string' &&
+              name.length > 0 &&
+              typeof pkg?.version === 'string' &&
+              pkg.version.length > 0,
+            'Invalid lockfile package.',
+          );
+          return `${name}@${pkg.version}`;
+        }),
+    ),
+  ].sort();
+  must(lockfileIds.length > 0, 'Empty lockfile inventory.');
+} catch {
+  errors.push('Missing or invalid root lockfile inventory.');
+}
 let packages = [],
   vulnerabilities = [],
   npmComponents = [];
@@ -57,14 +93,18 @@ try {
     'Invalid Trivy report.',
   );
   must(
+    report.Trivy?.Version === config.version,
+    'Unexpected Trivy report version.',
+  );
+  must(
     report.Results.every((result) => result && typeof result === 'object'),
     'Invalid Trivy result entry.',
   );
   const results = report.Results.filter((result) => result.Type === 'npm');
-  must(
-    results.some((result) => result.Target === 'package-lock.json'),
-    'Root lockfile was not inventoried.',
+  const rootResult = results.find(
+    (result) => result.Target === 'package-lock.json',
   );
+  must(rootResult, 'Root lockfile was not inventoried.');
   for (const result of results) {
     must(
       Array.isArray(result.Packages) &&
@@ -88,12 +128,20 @@ try {
       vulnerabilities.push(vulnerability);
     }
   }
-  must(packages.length > 0, 'Empty npm inventory.');
+  must(rootResult.Packages.length > 0, 'Empty root npm inventory.');
   // The Updater always has both scopes; one missing means --include-dev-deps
   // did not reach the inventory, which the SBOM comparison cannot detect.
   must(
-    packages.some((pkg) => !pkg.Dev) && packages.some((pkg) => pkg.Dev),
+    rootResult.Packages.some((pkg) => !pkg.Dev) &&
+      rootResult.Packages.some((pkg) => pkg.Dev),
     'Runtime or development npm inventory is empty.',
+  );
+  const rootIds = [
+    ...new Set(rootResult.Packages.map((pkg) => `${pkg.Name}@${pkg.Version}`)),
+  ].sort();
+  must(
+    JSON.stringify(rootIds) === JSON.stringify(lockfileIds),
+    'Root lockfile and Trivy npm inventories differ.',
   );
   must(
     sbom?.bomFormat === 'CycloneDX' &&
@@ -141,21 +189,16 @@ try {
   errors.push(error.message);
 }
 
+const database = version?.VulnerabilityDB;
 if (
   version?.Version !== config.version ||
   (env.TRIVY_VERSION && version.Version !== env.TRIVY_VERSION) ||
-  Number.isNaN(Date.parse(version?.VulnerabilityDB?.UpdatedAt))
+  !Number.isInteger(database?.Version) ||
+  database.Version <= 0 ||
+  Number.isNaN(Date.parse(database.UpdatedAt)) ||
+  Number.isNaN(Date.parse(database.NextUpdate))
 ) {
-  errors.push('Unexpected Trivy version or missing database timestamp.');
-}
-let lockfileSha256 = null;
-try {
-  lockfileSha256 = crypto
-    .createHash('sha256')
-    .update(fs.readFileSync(env.TRIVY_LOCKFILE_PATH || 'package-lock.json'))
-    .digest('hex');
-} catch {
-  errors.push('Unable to hash the root lockfile.');
+  errors.push('Unexpected Trivy version or invalid database metadata.');
 }
 const blockingFindingCount = config.blockingSeverities.reduce(
   (sum, severity) => sum + counts[severity],
