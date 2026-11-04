@@ -16,10 +16,10 @@
   "scripts": {
     "prebuild": "rm -rf dist",
     "build": "nest build",
-    "format": "prettier --check \"{src,app,lib,tests,config}/**/*.ts\"",
+    "format": "prettier --check \"{src,app,lib,test,config}/**/*.ts\"",
     "format:check": "npm run format && npm run format:ci",
     "format:ci": "prettier --check \"scripts/**/*.cjs\"",
-    "format:fix": "prettier --write \"{src,app,lib,tests,config}/**/*.ts\" \"scripts/**/*.cjs\"",
+    "format:fix": "prettier --write \"{src,app,lib,test,config}/**/*.ts\" \"scripts/**/*.cjs\"",
     "start": "npm run stop; npm run start:prod",
     "start:dev": "nest start",
     "start:watch": "nest start --watch",
@@ -27,7 +27,7 @@
     "start:prod": "node dist/src/main",
     "start:bg": "npm start &",
     "stop": "if [ -f \".pid\" ]; then PID=$(cat .pid); EXISTS=`ps axw | awk '{print $1}' | grep \"^${PID}$\"`; if [ \"$EXISTS\" ]; then kill $PID; fi; fi",
-    "lint": "eslint \"{src,app,lib,tests,config}/**/*.ts\"",
+    "lint": "eslint \"{src,app,lib,test,config}/**/*.ts\"",
     "lint:check": "npm run lint && npm run lint:ci",
     "lint:ci": "eslint --config scripts/eslint.config.cjs \"scripts/**/*.cjs\"",
     "lint:fix": "npm run lint -- --fix",
@@ -104,9 +104,16 @@
     "rootDir": ".",
     "roots": [
       "<rootDir>/src",
-      "<rootDir>/config"
+      "<rootDir>/config",
+      "<rootDir>/test"
     ],
-    "testRegex": ".*\\.spec\\.ts$",
+    "testRegex": ".*\\.(e2e-)?spec\\.ts$",
+    "moduleNameMapper": {
+      "^src/(.*)$": "<rootDir>/src/$1"
+    },
+    "modulePathIgnorePatterns": [
+      "<rootDir>/test/DATA/"
+    ],
     "transform": {
       "^.+\\.(t|j)s$": "ts-jest"
     },
