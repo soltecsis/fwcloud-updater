@@ -390,7 +390,7 @@ jobs:
   updater-ci:
     name: updater-ci
     if: ${{ always() }}
-    needs: [quality, test, secrets]
+    needs: [quality, test, secrets, sca]
     runs-on: ubuntu-latest
     timeout-minutes: 5
 
@@ -400,7 +400,9 @@ jobs:
           QUALITY_RESULT: ${{ needs.quality.result }}
           TEST_RESULT: ${{ needs.test.result }}
           SECRETS_RESULT: ${{ needs.secrets.result }}
+          SCA_RESULT: ${{ needs.sca.result }}
         run: |
           test "$QUALITY_RESULT" = success
           test "$TEST_RESULT" = success
           test "$SECRETS_RESULT" = success
+          test "$SCA_RESULT" = success
