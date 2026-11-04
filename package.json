@@ -104,12 +104,16 @@
     "rootDir": ".",
     "roots": [
       "<rootDir>/src",
-      "<rootDir>/config"
+      "<rootDir>/config",
+      "<rootDir>/test"
     ],
-    "testRegex": ".*\\.spec\\.ts$",
+    "testRegex": ".*\\.(e2e-)?spec\\.ts$",
     "moduleNameMapper": {
       "^src/(.*)$": "<rootDir>/src/$1"
     },
+    "modulePathIgnorePatterns": [
+      "<rootDir>/test/DATA/"
+    ],
     "transform": {
       "^.+\\.(t|j)s$": "ts-jest"
     },
